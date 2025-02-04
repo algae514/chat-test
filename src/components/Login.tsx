@@ -1,40 +1,64 @@
 import React, { useState } from 'react';
+import { login } from '../services/auth';
 
 interface LoginProps {
-  onLogin: (phoneNumber: string) => void;
-  panelId: string;
+  onLoginSuccess: (userData: any) => void;
 }
 
-const Login: React.FC<LoginProps> = ({ onLogin, panelId }) => {
+const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
 
-  const handleLogin = async () => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
     try {
-      const response = await fetch('http://localhost:9091/aluminiapp/v2/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ phoneNumber }),
-      });
-      const data = await response.json();
-      onLogin(data.user.phoneNumber);
-      localStorage.setItem(`${panelId}_token`, data.accessToken);
-      localStorage.setItem(`${panelId}_user`, JSON.stringify(data.user));
-    } catch (error) {
-      console.error('Login failed:', error);
+      const userData = await login(phoneNumber, password);
+      onLoginSuccess(userData);
+    } catch (err) {
+      setError('Login failed. Please check your credentials.');
     }
   };
 
   return (
-    <div className="login-form">
-      <input
-        type="text"
-        value={phoneNumber}
-        onChange={(e) => setPhoneNumber(e.target.value)}
-        placeholder="Enter phone number"
-      />
-      <button onClick={handleLogin}>Login</button>
+    <div className="login-container" style={{ maxWidth: '400px', margin: '0 auto', padding: '20px' }}>
+      <h2>Login</h2>
+      {error && <div style={{ color: 'red', marginBottom: '10px' }}>{error}</div>}
+      <form onSubmit={handleSubmit}>
+        <div style={{ marginBottom: '15px' }}>
+          <label>Phone Number:</label>
+          <input
+            type="text"
+            value={phoneNumber}
+            onChange={(e) => setPhoneNumber(e.target.value)}
+            style={{ width: '100%', padding: '8px' }}
+          />
+        </div>
+        <div style={{ marginBottom: '15px' }}>
+          <label>Password:</label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            style={{ width: '100%', padding: '8px' }}
+          />
+        </div>
+        <button 
+          type="submit"
+          style={{ 
+            width: '100%', 
+            padding: '10px', 
+            backgroundColor: '#007bff', 
+            color: 'white', 
+            border: 'none', 
+            borderRadius: '4px' 
+          }}
+        >
+          Login
+        </button>
+      </form>
     </div>
   );
 };
