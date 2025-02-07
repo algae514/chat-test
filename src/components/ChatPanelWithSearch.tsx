@@ -63,13 +63,14 @@ const ChatPanelWithSearch: React.FC<ChatPanelWithSearchProps> = ({ panelId }) =>
           <UserSearch onUserSelect={handleUserSelect} authToken={authState} />
         </div>
       )}
-      {selectedUser && (
+      {isAuthenticated && selectedUser && (
         <div className="flex-1">
           <ChatPanel 
             panelId={panelId} 
             selectedUserId={selectedUser.userId} 
             isAuthenticated={isAuthenticated}
             initialFirebaseToken={authState.firebaseToken}
+            authState={authState}
           />
         </div>
       )}
