@@ -1,0 +1,201 @@
+React Web Test App Design Document (Two Independent Panels)
+
+1. Overview
+
+1.1 Purpose
+
+This test application is designed for internal testing and validation of end-to-end chat flows, authentication, and backend services. The app consists of a single page with two distinct panels that simulate independent user sessions. Each panel logs in with a phone number, manages its own API headers, and maintains its own authentication state. This setup allows you to test chat functionality—such as sending and receiving messages—between two users within one browser window.
+
+1.2 Goals
+	•	Validate Authentication:
+Ensure phone number-based authentication works via Firebase for each independent user.
+	•	Simulate Chat Interaction:
+Allow two separate user components to send messages and interact as if they are in a real chat.
+	•	Isolate API Sessions:
+Each panel uses its own API calls (with distinct headers and tokens) so that there is no interference between sessions.
+	•	Test Backend Endpoints:
+Confirm that token generation and other backend services return correct values for each independent user.
+	•	Prepare for Future Extensions:
+This test app will serve as a basis for adding more complex features (such as group services) later on.
+
+2. Functional Requirements
+
+2.1 User Authentication
+	•	Phone Number Login:
+	•	Each panel requires the user to log in using a phone number.
+	•	Authentication is handled by Firebase Authentication.
+	•	Upon successful login, each panel displays the user’s identifier or profile info.
+	•	API Independence:
+	•	Each panel sends and receives its own API calls with separate headers and tokens.
+	•	No shared session or local storage between panels is assumed (each operates independently).
+
+2.2 Chat Interface
+	•	Dual Component Display:
+	•	The page is split into two side-by-side panels, each representing a separate user session.
+	•	Both panels are visible simultaneously to facilitate real-time chat testing.
+	•	Real-Time Messaging:
+	•	Once authenticated, each user can send messages.
+	•	Messages are stored in Firestore and updated in real time for both panels.
+	•	Each panel listens to Firestore independently, ensuring messages are displayed based on each panel’s API headers and tokens.
+	•	User Feedback:
+	•	Display status for sent messages, including errors if any API call fails.
+
+2.3 Backend Integration
+	•	Token Generation & Headers:
+	•	Each panel interacts with the backend (e.g., via Axios) using its own headers and tokens.
+	•	Validate that all endpoints (for authentication, messaging, etc.) function correctly and return expected values.
+	•	Service Testing:
+	•	Verify that API responses from the backend for each independent user are correct and isolated.
+
+3. Non-Functional Requirements
+
+3.1 Simplicity
+	•	Minimal & Clear UI:
+	•	Focus on functionality. The interface should be simple, with two clearly delineated panels.
+	•	Design the layout to avoid confusion: each panel is clearly labeled (e.g., “User 1” and “User 2”).
+
+3.2 Performance & Real-Time Interaction
+	•	Responsive Updates:
+	•	Ensure that real-time updates (via Firestore listeners) display with minimal latency.
+	•	Isolated Sessions:
+	•	Maintain independent API calls, ensuring that headers, tokens, and authentication states do not interfere between panels.
+
+3.3 Maintainability
+	•	Modular Code Structure:
+	•	Organize the code so that each panel is encapsulated in its own React component.
+	•	Each component handles its own API calls, authentication, and state management.
+	•	Error Handling & Logging:
+	•	Implement clear logging for each panel, making it easy to debug issues in one session without affecting the other.
+
+4. Architecture & Key Components
+
+4.1 Technology Stack
+	•	Frontend:
+	•	React (using Vite for rapid development and hot reloading)
+	•	TypeScript for type safety
+	•	Authentication & Messaging:
+	•	Firebase Authentication (for phone number login)
+	•	Firebase Firestore (for real-time chat data)
+	•	HTTP Client:
+	•	Axios (for backend API interactions)
+	•	Development Tools:
+	•	Vite for development, build, and preview processes
+
+4.2 Application Layout
+	•	Two-Panel Layout on a Single Page:
+	•	User 1 Panel:
+	•	Contains its own authentication form, chat interface, and independent API headers.
+	•	User 2 Panel:
+	•	Contains a separate authentication form, chat interface, and independent API headers.
+	•	Shared Environment:
+	•	Both panels operate in the same window but maintain independent state and API interactions.
+
+4.3 Data Flow
+	1.	Login Flow (Per Panel):
+	•	User enters a phone number in their respective panel.
+	•	Firebase handles authentication and returns a token.
+	•	The panel stores the token locally (within its component state) and sets up its API headers.
+	2.	Chat Messaging:
+	•	Authenticated users send messages from their panel.
+	•	Messages are written to a Firestore collection (e.g., /chats).
+	•	Both panels listen to Firestore for new messages and update their chat history in real time.
+	3.	API Isolation:
+	•	Each panel’s API calls include its own token in the headers.
+	•	Backend endpoints are called independently, ensuring isolated sessions.
+
+5. API & Integration Points
+
+5.1 Firebase Integration
+	•	Firebase Authentication:
+	•	Use Firebase’s SDK to implement phone number authentication.
+	•	Handle SMS verification and token generation for each panel separately.
+	•	Firestore:
+	•	Chat Collection:
+	•	Each message document should contain:
+
+{
+  "senderId": "uniqueUserIdentifier",
+  "messageText": "Sample message",
+  "timestamp": "2025-02-04T12:34:56Z",
+  "status": "sent" // or "delivered", "read"
+}
+
+
+	•	Real-Time Listeners:
+	•	Each panel sets up its own listener on the chat collection to update the UI independently.
+
+5.2 Java Backend (If Applicable)
+	•	Token Generation Endpoint:
+	•	Integrate with your backend (e.g., POST /api/auth/phone) for any additional token generation.
+	•	Each panel calls this endpoint separately and uses the returned token for subsequent API calls.
+	•	Other Endpoints:
+	•	Use Axios to send requests with distinct headers (including the individual tokens) from each panel.
+
+6. User Interface & User Experience
+
+6.1 Single Page, Two Independent Panels
+	•	Layout:
+	•	Use a split-screen layout (e.g., CSS Flexbox or Grid) to display both panels side-by-side.
+	•	Clearly label each panel (e.g., “User 1” and “User 2”) to avoid confusion.
+	•	Independence:
+	•	Each panel contains its own authentication form, chat history, message input, and send button.
+	•	Ensure that all API calls, tokens, and headers are maintained locally within each panel’s component state.
+
+6.2 Authentication Screen (Within Each Panel)
+	•	Form Elements:
+	•	Input field for phone number.
+	•	Button to trigger phone authentication.
+	•	Feedback:
+	•	Display error messages and loading indicators during authentication.
+
+6.3 Chat Screen (Within Each Panel)
+	•	Message Display:
+	•	A scrollable list showing the conversation history.
+	•	Use visual cues (e.g., colors, alignment) to differentiate messages from the two users.
+	•	Message Input:
+	•	A text input field for composing messages.
+	•	A send button that triggers the message send API call.
+	•	Real-Time Updates:
+	•	Both panels update instantly when a new message is added to Firestore.
+	•	Logging & Debugging:
+	•	Log API calls, authentication events, and messaging events separately for each panel.
+
+7. Development Environment Setup
+
+7.1 Package Configuration
+	•	check package.json
+
+
+7.2 Firebase Setup
+/Users/balajiv/Documents/coderepos/test/chat-test/src/services/firebase.ts
+
+8. Testing & Validation
+
+8.1 Manual Test Cases
+	•	Authentication:
+	•	Verify that each panel can log in independently using a unique phone number.
+	•	Ensure that tokens and API headers are managed separately.
+	•	Chat Flow:
+	•	Send messages from one panel and confirm they appear in both panels in real time.
+	•	Backend Integration:
+	•	Validate that the backend endpoints respond correctly for each independent API call.
+	•	Error Handling:
+	•	Test for invalid phone numbers and simulate network errors in each panel to ensure isolated error feedback.
+
+8.2 Logging & Debugging
+	•	Use console logs within each panel’s component to trace authentication and messaging events.
+	•	Display inline error messages for easy debugging within each panel.
+
+9. Future Enhancements
+	•	Group Chat Services:
+Extend the interface to support group chats within one or both panels.
+	•	File Sharing:
+Integrate file upload/download capabilities for further testing.
+	•	UI/UX Improvements:
+Enhance the visual design, responsiveness, and layout as needed.
+	•	Extended Backend Validations:
+Add more detailed logging, error handling, and monitoring for production readiness.
+
+10. Summary
+
+This document details the design for a React web test app with two independent user panels on a single page. Each panel simulates its own user session, complete with separate authentication, API headers, and real-time messaging via Firebase. This configuration allows you to test end-to-end chat flows and backend integrations without session conflicts, ensuring that all services work as expected before scaling up or transitioning to a React Native implementation.
