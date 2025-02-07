@@ -91,3 +91,58 @@ button:hover {
   margin-top: 8px;
   font-size: 0.875rem;
 }
+
+/* File attachment styles */
+.file-attachment {
+  margin-top: 8px;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.file-attachment img {
+  max-width: 200px;
+  max-height: 200px;
+  border-radius: 4px;
+}
+
+.file-attachment-info {
+  font-size: 0.875rem;
+  color: #666;
+}
+
+.file-attachment-preview {
+  padding: 8px;
+  background: #f8f9fa;
+  border-radius: 4px;
+  margin-top: 8px;
+}
+
+.file-upload-button {
+  background: transparent;
+  padding: 6px;
+  color: #666;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.file-upload-button:hover {
+  background: #f0f0f0;
+  color: #333;
+}
+
+.pending-attachment {
+  background: #f8f9fa;
+  padding: 6px 12px;
+  border-radius: 4px;
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.875rem;
+}
