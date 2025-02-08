@@ -1,5 +1,16 @@
-import React from 'react';
-import FileUpload from '../FileUpload';
+import React, { useState } from 'react';
+import { 
+  Box, 
+  TextField, 
+  IconButton, 
+  Alert,
+  styled,
+} from '@mui/material';
+import { 
+  Send as SendIcon,
+  AttachFile as AttachFileIcon,
+  Close as CloseIcon 
+} from '@mui/icons-material';
 import type { FileAttachment } from '../../types';
 
 interface MessageInputProps {
@@ -11,8 +22,34 @@ interface MessageInputProps {
   userId: string;
   onFileUploadComplete: (attachment: FileAttachment) => void;
   onFileUploadError: (error: string) => void;
-  error?: string;
+  error: string;
 }
+
+const StyledInputContainer = styled(Box)(({ theme }) => ({
+  display: 'flex',
+  gap: theme.spacing(1),
+  padding: theme.spacing(2),
+  backgroundColor: '#fff',
+  borderTop: '1px solid',
+  borderColor: theme.palette.divider,
+  alignItems: 'center',
+}));
+
+const StyledInput = styled(TextField)({
+  '& .MuiOutlinedInput-root': {
+    borderRadius: '20px',
+    backgroundColor: '#f5f5f5',
+    '& fieldset': {
+      border: 'none',
+    },
+    '&:hover fieldset': {
+      border: 'none',
+    },
+    '&.Mui-focused fieldset': {
+      border: 'none',
+    },
+  },
+});
 
 const MessageInput: React.FC<MessageInputProps> = ({
   newMessage,
@@ -23,47 +60,124 @@ const MessageInput: React.FC<MessageInputProps> = ({
   userId,
   onFileUploadComplete,
   onFileUploadError,
-  error
+  error,
 }) => {
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    try {
+      // Handle file upload logic here
+      const attachment: FileAttachment = {
+        name: file.name,
+        type: file.type,
+        url: 'mock-url', // Replace with actual upload logic
+        size: file.size,
+      };
+      onFileUploadComplete(attachment);
+    } catch (err) {
+      onFileUploadError('Failed to upload file. Please try again.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   return (
-    <div className="p-4 border-t bg-gray-50">
-      <form onSubmit={onSendMessage} className="flex items-center gap-2">
-        <div className="flex-1">
-          <input
-            type="text"
-            value={newMessage}
-            onChange={(e) => onMessageChange(e.target.value)}
-            placeholder="Type a message..."
-            className="w-full p-2 border rounded"
-          />
-          {pendingAttachment && (
-            <div className="mt-2 p-2 bg-gray-100 rounded text-sm">
-              📎 {pendingAttachment.fileName}
-              <button
-                type="button"
-                onClick={onPendingAttachmentClear}
-                className="ml-2 text-red-500 hover:text-red-700"
-              >
-                ✕
-              </button>
-            </div>
-          )}
-        </div>
-        <FileUpload
-          userId={userId}
-          onUploadComplete={onFileUploadComplete}
-          onUploadError={onFileUploadError}
-        />
-        <button 
-          type="submit"
-          className="bg-blue-500 text-white p-2 rounded hover:bg-blue-600"
-          disabled={!newMessage.trim() && !pendingAttachment}
+    <Box sx={{ mt: 'auto' }}>
+      {error && (
+        <Alert 
+          severity="error" 
+          sx={{ m: 1 }}
+          action={
+            <IconButton
+              size="small"
+              onClick={() => onFileUploadError('')}
+            >
+              <CloseIcon fontSize="small" />
+            </IconButton>
+          }
         >
-          Send
-        </button>
-      </form>
-      {error && <p className="text-red-500 mt-2">{error}</p>}
-    </div>
+          {error}
+        </Alert>
+      )}
+      
+      {pendingAttachment && (
+        <Box sx={{ 
+          p: 1, 
+          m: 1, 
+          bgcolor: 'grey.100', 
+          borderRadius: 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between'
+        }}>
+          <span>📎 {pendingAttachment.name}</span>
+          <IconButton size="small" onClick={onPendingAttachmentClear}>
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </Box>
+      )}
+
+      <StyledInputContainer>
+        <input
+          type="file"
+          id={`file-input-${userId}`}
+          onChange={handleFileSelect}
+          style={{ display: 'none' }}
+        />
+        <IconButton
+          component="label"
+          htmlFor={`file-input-${userId}`}
+          disabled={isUploading}
+          color="primary"
+          sx={{ 
+            '&:hover': { 
+              backgroundColor: 'rgba(25, 118, 210, 0.04)' 
+            }
+          }}
+        >
+          <AttachFileIcon />
+        </IconButton>
+
+        <StyledInput
+          fullWidth
+          placeholder="Type a message..."
+          value={newMessage}
+          onChange={(e) => onMessageChange(e.target.value)}
+          size="small"
+          multiline
+          maxRows={4}
+          onKeyPress={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              onSendMessage(e);
+            }
+          }}
+        />
+
+        <IconButton
+          onClick={onSendMessage}
+          disabled={!newMessage.trim() && !pendingAttachment}
+          color="primary"
+          sx={{
+            backgroundColor: '#1976d2',
+            color: 'white',
+            '&:hover': {
+              backgroundColor: '#1565c0',
+            },
+            '&.Mui-disabled': {
+              backgroundColor: '#e0e0e0',
+              color: '#9e9e9e',
+            },
+          }}
+        >
+          <SendIcon />
+        </IconButton>
+      </StyledInputContainer>
+    </Box>
   );
 };
 

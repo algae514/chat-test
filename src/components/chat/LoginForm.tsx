@@ -1,63 +1,107 @@
 import React, { useState } from 'react';
-import axios from 'axios';
-import { signInWithFirebaseToken } from '../../services/firebase';
+import { TextField, Button, Paper, Box, Typography, Alert } from '@mui/material';
+import { styled } from '@mui/material/styles';
+import { signInWithCustomToken } from 'firebase/auth';
+import { auth } from '../../services/firebase';
 
 interface LoginFormProps {
   panelId: string;
   onLoginSuccess: (accessToken: string, firebaseToken: string, userId: string) => void;
 }
 
-const LoginForm: React.FC<LoginFormProps> = ({ panelId, onLoginSuccess }) => {
-  const [phoneNumber, setPhoneNumber] = useState(panelId === '1' ? '9346657275' : '');
-  const [error, setError] = useState('');
+const StyledPaper = styled(Paper)(({ theme }) => ({
+  padding: theme.spacing(3),
+  display: 'flex',
+  flexDirection: 'column',
+  gap: theme.spacing(2),
+  maxWidth: '400px',
+  margin: '20px auto',
+  borderRadius: '12px',
+  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+}));
 
-  const handlePhoneLogin = async (e: React.FormEvent) => {
+const LoginForm: React.FC<LoginFormProps> = ({ panelId, onLoginSuccess }) => {
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+    setIsLoading(true);
+
     try {
-      const response = await axios.post('http://localhost:9091/aluminiapp/v2/auth/login', { 
-        username: phoneNumber
+      const response = await fetch('http://localhost:5173/api/auth/phone', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ phoneNumber }),
       });
+
+      const { accessToken, firebaseToken } = await response.json();
+
+      // Sign in to Firebase
+      const userCredential = await signInWithCustomToken(auth, firebaseToken);
       
-      const { accessToken, firebaseToken } = response.data;
-      const user = await signInWithFirebaseToken(firebaseToken);
-      onLoginSuccess(accessToken, firebaseToken, user.uid);
-      setError('');
+      onLoginSuccess(accessToken, firebaseToken, userCredential.user.uid);
     } catch (err) {
-      let errorMessage = 'Authentication failed. Please try again.';
-      if (axios.isAxiosError(err)) {
-        if (err.response?.status === 404) {
-          errorMessage = 'Backend service not reachable. Please check if the service is running.';
-        } else if (err.response?.data?.message) {
-          errorMessage = err.response.data.message;
-        }
-      } else if (err instanceof Error) {
-        errorMessage = `Firebase error: ${err.message}`;
-      }
-      setError(errorMessage);
-      console.error('Full error:', err);
+      setError('Login failed. Please try again.');
+      console.error('Login error:', err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className="p-4">
-      <form onSubmit={handlePhoneLogin} className="space-y-4">
-        <input
-          type="tel"
+    <StyledPaper elevation={0}>
+      <Typography variant="h6" component="h2" gutterBottom>
+        Chat Panel {panelId}
+      </Typography>
+      
+      <Box component="form" onSubmit={handleLogin} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <TextField
+          fullWidth
+          label="Phone Number"
+          variant="outlined"
           value={phoneNumber}
           onChange={(e) => setPhoneNumber(e.target.value)}
           placeholder="Enter phone number"
-          className="w-full p-2 border rounded"
+          size="small"
           required
+          InputProps={{
+            sx: {
+              borderRadius: '8px',
+            }
+          }}
         />
-        <button 
+        
+        <Button
           type="submit"
-          className="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600"
+          variant="contained"
+          color="primary"
+          disabled={isLoading || !phoneNumber}
+          sx={{
+            borderRadius: '8px',
+            textTransform: 'none',
+            py: 1,
+            boxShadow: 'none',
+            '&:hover': {
+              boxShadow: 'none',
+              backgroundColor: '#1565c0',
+            }
+          }}
         >
-          Login
-        </button>
-        {error && <p className="text-red-500">{error}</p>}
-      </form>
-    </div>
+          {isLoading ? 'Logging in...' : 'Login'}
+        </Button>
+
+        {error && (
+          <Alert severity="error" sx={{ borderRadius: '8px' }}>
+            {error}
+          </Alert>
+        )}
+      </Box>
+    </StyledPaper>
   );
 };
 

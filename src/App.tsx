@@ -1,27 +1,62 @@
 import React from 'react';
+import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
 import ChatPanelWithSearch from './components/ChatPanelWithSearch';
+import './styles.css';
+
+// Create a custom theme
+const theme = createTheme({
+  palette: {
+    primary: {
+      main: '#1976d2',
+      light: '#42a5f5',
+      dark: '#1565c0',
+    },
+    background: {
+      default: '#f5f7fb',
+    },
+  },
+  typography: {
+    fontFamily: [
+      '-apple-system',
+      'BlinkMacSystemFont',
+      '"Segoe UI"',
+      'Roboto',
+      '"Helvetica Neue"',
+      'Arial',
+      'sans-serif',
+    ].join(','),
+  },
+  components: {
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          textTransform: 'none',
+          borderRadius: '8px',
+        },
+      },
+    },
+    MuiIconButton: {
+      styleOverrides: {
+        root: {
+          borderRadius: '8px',
+        },
+      },
+    },
+  },
+});
 
 const App: React.FC = () => {
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <h1 className="text-2xl font-bold mb-6 text-gray-800">Chat Test App</h1>
-      <table className="w-full border-separate border-spacing-6">
-        <tbody>
-          <tr>
-            <td className="w-1/2 align-top">
-              <div className="bg-white rounded-lg shadow-md overflow-hidden h-full">
-                <ChatPanelWithSearch panelId="1" />
-              </div>
-            </td>
-            <td className="w-1/2 align-top">
-              <div className="bg-white rounded-lg shadow-md overflow-hidden h-full">
-                <ChatPanelWithSearch panelId="2" />
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <div className="app-container">
+        <h1 className="app-title">Chat Test App</h1>
+        <div className="chat-panels-container">
+          <ChatPanelWithSearch panelId="1" />
+          <ChatPanelWithSearch panelId="2" />
+        </div>
+      </div>
+    </ThemeProvider>
   );
 };
 
