@@ -78,47 +78,6 @@ const ChatPanelWithSearch: React.FC<ChatPanelWithSearchProps> = ({ panelId }) =>
               authState={authState}
             />
           </div>
-          <div className="input-area">
-            <TextField
-              placeholder="Type a message..."
-              variant="standard"
-              fullWidth
-              InputProps={{
-                disableUnderline: true,
-                className: 'message-input'
-              }}
-            />
-            <div className="file-upload-container">
-              <input
-                type="file"
-                id={`file-upload-${panelId}`}
-                style={{ display: 'none' }}
-              />
-              <IconButton
-                color="primary"
-                component="label"
-                htmlFor={`file-upload-${panelId}`}
-                size="medium"
-              >
-                <AttachFileIcon />
-              </IconButton>
-            </div>
-            <IconButton
-              color="primary"
-              size="medium"
-              sx={{
-                backgroundColor: '#1976d2',
-                color: 'white',
-                '&:hover': {
-                  backgroundColor: '#1565c0',
-                },
-                width: '40px',
-                height: '40px'
-              }}
-            >
-              <SendIcon />
-            </IconButton>
-          </div>
         </>
       ) : (
         <div className="search-wrapper">

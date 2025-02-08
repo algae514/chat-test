@@ -6,6 +6,26 @@ interface FileAttachmentViewProps {
 }
 
 const FileAttachmentView: React.FC<FileAttachmentViewProps> = ({ attachment }) => {
+  // Debug log to see what properties we're receiving
+  console.log('FileAttachmentView received:', attachment);
+
+  // Convert legacy format if needed
+  const normalizedAttachment = {
+    fileType: attachment.fileType || attachment.type,
+    fileName: attachment.fileName || attachment.name,
+    url: attachment.url,
+    size: attachment.size
+  };
+
+  if (!normalizedAttachment.fileType || !normalizedAttachment.size || 
+      !normalizedAttachment.url || !normalizedAttachment.fileName) {
+    console.error('Invalid attachment data:', normalizedAttachment);
+    return null;
+  }
+
+  // Update attachment to use normalized values
+  attachment = normalizedAttachment;
+
   const isImage = attachment.fileType.startsWith('image/');
   const fileSize = attachment.size < 1024 * 1024
     ? `${Math.round(attachment.size / 1024)} KB`

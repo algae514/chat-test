@@ -120,7 +120,12 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       };
 
       if (pendingAttachment) {
-        messageData.attachment = pendingAttachment;
+        messageData.attachment = {
+          url: pendingAttachment.url,
+          fileName: pendingAttachment.fileName,
+          fileType: pendingAttachment.fileType,
+          size: pendingAttachment.size
+        };
         setPendingAttachment(null);
       }
 

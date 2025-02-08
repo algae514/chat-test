@@ -128,7 +128,7 @@ The system is divided into three main components:
 
 4.1 Java Backend API Endpoints
 	•	Authentication:
-	•	POST /api/auth/phone
+	•	POST http://localhost:9091/aluminiapp/v2/auth/login
 	•	Input: { "phoneNumber": "+1234567890" }
 	•	Output: { "firebaseToken": "XYZ" }
 	•	Error Handling: Return appropriate HTTP status codes (e.g., 401 for unauthorized).

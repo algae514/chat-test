@@ -31,7 +31,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ panelId, onLoginSuccess }) => {
     setIsLoading(true);
 
     try {
-      const response = await fetch('http://localhost:5173/api/auth/phone', {
+      const response = await fetch('http://localhost:9091/aluminiapp/v2/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -126,7 +126,7 @@ This test app will serve as a basis for adding more complex features (such as gr
 
 5.2 Java Backend (If Applicable)
 	•	Token Generation Endpoint:
-	•	Integrate with your backend (e.g., POST /api/auth/phone) for any additional token generation.
+	•	Integrate with your backend (e.g., POST http://localhost:9091/aluminiapp/v2/auth/login) for any additional token generation.
 	•	Each panel calls this endpoint separately and uses the returned token for subsequent API calls.
 	•	Other Endpoints:
 	•	Use Axios to send requests with distinct headers (including the individual tokens) from each panel.

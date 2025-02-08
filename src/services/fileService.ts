@@ -12,12 +12,9 @@ const ALLOWED_FILE_TYPES = {
   'text/plain': true
 };
 
-interface UploadResponse {
-  url: string;
-  fileName: string;
-  fileType: string;
-  size: number;
-}
+import type { FileAttachment } from '../types';
+
+type UploadResponse = FileAttachment;
 
 export const validateFile = (file: File): string | null => {
   if (file.size > MAX_FILE_SIZE) {
@@ -67,12 +64,14 @@ export const uploadFile = async (file: File, userId: string): Promise<UploadResp
     });
     const downloadURL = await getDownloadURL(snapshot.ref);
 
-    return {
+    const result: UploadResponse = {
       url: downloadURL,
       fileName: file.name,
       fileType: file.type,
       size: file.size
     };
+    console.log('Upload completed with result:', result);
+    return result;
   } catch (error) {
     console.error('Error uploading file:', error);
     throw new Error('Failed to upload file');

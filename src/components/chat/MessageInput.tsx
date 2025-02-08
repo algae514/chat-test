@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { uploadFile } from '../../services/fileService';
 import { 
   Box, 
   TextField, 
@@ -70,18 +71,15 @@ const MessageInput: React.FC<MessageInputProps> = ({
 
     setIsUploading(true);
     try {
-      // Handle file upload logic here
-      const attachment: FileAttachment = {
-        name: file.name,
-        type: file.type,
-        url: 'mock-url', // Replace with actual upload logic
-        size: file.size,
-      };
-      onFileUploadComplete(attachment);
+      const uploadResult = await uploadFile(file, userId);
+      onFileUploadComplete(uploadResult);  // Pass through the FileAttachment object directly
     } catch (err) {
       onFileUploadError('Failed to upload file. Please try again.');
+      console.error('File upload error:', err);
     } finally {
       setIsUploading(false);
+      // Clear the input
+      event.target.value = '';
     }
   };
 
