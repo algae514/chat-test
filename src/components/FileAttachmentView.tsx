@@ -26,7 +26,7 @@ const FileAttachmentView: React.FC<FileAttachmentViewProps> = ({ attachment }) =
   // Update attachment to use normalized values
   attachment = normalizedAttachment;
 
-  const isImage = attachment.fileType.startsWith('image/');
+  const isImage = normalizedAttachment.fileType?.startsWith('image/') || false;
   const fileSize = attachment.size < 1024 * 1024
     ? `${Math.round(attachment.size / 1024)} KB`
     : `${(attachment.size / (1024 * 1024)).toFixed(1)} MB`;

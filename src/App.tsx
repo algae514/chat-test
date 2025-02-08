@@ -1,5 +1,7 @@
 import React from 'react';
-import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
+import { ThemeProvider } from '@mui/material/styles';
+import { createTheme } from '@mui/material/styles';
+import CssBaseline from '@mui/material/CssBaseline';
 import ChatPanelWithSearch from './components/ChatPanelWithSearch';
 import './styles.css';
 

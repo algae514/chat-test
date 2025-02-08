@@ -1,5 +1,10 @@
 import React, { useState } from 'react';
-import { TextField, Button, Paper, Box, Typography, Alert } from '@mui/material';
+import TextField from '@mui/material/TextField';
+import Button from '@mui/material/Button';
+import Paper from '@mui/material/Paper';
+import Box from '@mui/material/Box';
+import Typography from '@mui/material/Typography';
+import Alert from '@mui/material/Alert';
 import { styled } from '@mui/material/styles';
 import { signInWithCustomToken } from 'firebase/auth';
 import { auth } from '../../services/firebase';

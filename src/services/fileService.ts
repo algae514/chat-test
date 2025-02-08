@@ -1,4 +1,4 @@
-import { ref, uploadBytes, getDownloadURL, deleteObject, uploadBytesResumable } from 'firebase/storage';
+import { ref, getDownloadURL, deleteObject, uploadBytesResumable } from 'firebase/storage';
 import { storage } from './firebase';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -21,7 +21,7 @@ export const validateFile = (file: File): string | null => {
     return `File size exceeds maximum limit of ${MAX_FILE_SIZE / 1024 / 1024}MB`;
   }
   
-  if (!ALLOWED_FILE_TYPES[file.type]) {
+  if (!file.type || !(file.type in ALLOWED_FILE_TYPES)) {
     return 'File type not supported';
   }
   
@@ -36,10 +36,8 @@ export const uploadFile = async (file: File, userId: string): Promise<UploadResp
   }
 
   const timestamp = Date.now();
-  const fileName = `${userId}_${timestamp}_${file.name}`;
   // Create a storage reference with a unique path
-  const uniqueId = Math.random().toString(36).substring(2);
-  const filePath = `uploads/${uniqueId}_${Date.now()}_${file.name}`;
+  const filePath = `uploads/${userId}/${userId}_${timestamp}_${file.name}`;
   console.log('File path:', filePath);
   const storageRef = ref(storage, filePath);
 
@@ -62,7 +60,7 @@ export const uploadFile = async (file: File, userId: string): Promise<UploadResp
         }
       );
     });
-    const downloadURL = await getDownloadURL(snapshot.ref);
+    const downloadURL = await getDownloadURL((snapshot as any).ref);
 
     const result: UploadResponse = {
       url: downloadURL,

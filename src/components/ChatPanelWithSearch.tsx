@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Button, TextField, IconButton } from '@mui/material';
-import { Send as SendIcon, AttachFile as AttachFileIcon } from '@mui/icons-material';
+import Button from '@mui/material/Button';
+
 import ChatPanel from './chat/ChatPanel';
 import UserSearch from './UserSearch';
 import type { UserProfile } from '../types';
@@ -11,7 +11,6 @@ interface ChatPanelWithSearchProps {
 
 const ChatPanelWithSearch: React.FC<ChatPanelWithSearchProps> = ({ panelId }) => {
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
-  const [showSearch, setShowSearch] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authState, setAuthState] = useState({
     accessToken: '',
@@ -28,7 +27,6 @@ const ChatPanelWithSearch: React.FC<ChatPanelWithSearchProps> = ({ panelId }) =>
 
   const handleUserSelect = (user: UserProfile) => {
     setSelectedUser(user);
-    setShowSearch(false);
   };
 
   return (
@@ -37,7 +35,7 @@ const ChatPanelWithSearch: React.FC<ChatPanelWithSearchProps> = ({ panelId }) =>
         <div className="panel-content">
           <ChatPanel 
             panelId={panelId} 
-            onAuthenticated={(token) => handleLogin(token)}
+            onAuthenticated={(accessToken, firebaseToken) => handleLogin(accessToken, firebaseToken)}
           />
         </div>
       ) : selectedUser ? (
@@ -53,10 +51,7 @@ const ChatPanelWithSearch: React.FC<ChatPanelWithSearchProps> = ({ panelId }) =>
               variant="contained"
               color="inherit"
               size="small"
-              onClick={() => {
-                setSelectedUser(null);
-                setShowSearch(true);
-              }}
+              onClick={() => setSelectedUser(null)}
               sx={{
                 textTransform: 'none',
                 borderRadius: '20px',
@@ -74,7 +69,6 @@ const ChatPanelWithSearch: React.FC<ChatPanelWithSearchProps> = ({ panelId }) =>
               panelId={panelId} 
               selectedUserId={selectedUser.userId} 
               isAuthenticated={isAuthenticated}
-              initialFirebaseToken={authState.firebaseToken}
               authState={authState}
             />
           </div>

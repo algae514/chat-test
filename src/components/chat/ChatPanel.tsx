@@ -11,8 +11,8 @@ interface ChatPanelProps {
   panelId: string;
   onAuthenticated?: (accessToken: string, firebaseToken: string) => void;
   isAuthenticated?: boolean;
-  initialFirebaseToken?: string;
-  authState: {
+
+  authState?: {
     accessToken: string;
     firebaseToken: string;
   };
@@ -22,8 +22,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   panelId, 
   selectedUserId, 
   onAuthenticated,
-  isAuthenticated: initialIsAuthenticated,
-  initialFirebaseToken
+  isAuthenticated: initialIsAuthenticated
 }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');

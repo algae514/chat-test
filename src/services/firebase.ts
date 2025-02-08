@@ -29,8 +29,8 @@ export const signInWithFirebaseToken = async (token: string) => {
     return userCredential.user;
   } catch (error) {
     console.error('Firebase authentication error:', {
-      code: error.code,
-      message: error.message,
+      code: (error as { code?: string }).code,
+      message: (error as { message?: string }).message,
       fullError: error
     });
     throw error;

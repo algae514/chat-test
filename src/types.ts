@@ -1,7 +1,9 @@
 export interface FileAttachment {
   url: string;
-  fileName: string;
-  fileType: string;
+  fileName?: string;
+  name?: string;
+  fileType?: string;
+  type?: string;
   size: number;
 }
 

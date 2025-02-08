@@ -25,7 +25,7 @@ export const login = async (phoneNumber: string, password: string) => {
       password
     });
 
-    const { firebaseToken, user } = response.data;
+    const { firebaseToken } = response.data;
     
     await signInWithFirebaseToken(firebaseToken);
     

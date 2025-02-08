@@ -76,7 +76,7 @@ const UserSearch: React.FC<UserSearchProps> = ({ onUserSelect, authToken }) => {
         <div className="mt-2 max-h-48 overflow-y-auto border rounded shadow-sm divide-y">
           {users.map((user) => (
             <div
-              key={user.id}
+              key={user.userId}
               className="p-2 hover:bg-gray-50 cursor-pointer"
               onClick={() => onUserSelect(user)}
             >
