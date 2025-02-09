@@ -30,7 +30,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   selectedUserId, 
   isAuthenticated = false,
   onAuthenticated,
-  authState,
   userId: propUserId 
 }) => {
   const [chatState, setChatState] = useState<ChatState>({

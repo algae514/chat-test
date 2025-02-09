@@ -5,14 +5,12 @@ import {
   writeBatch, 
   serverTimestamp, 
   increment,
-  getDoc,
-  Timestamp,
   query,
   where,
   getDocs
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { Message, Attachment } from '../types';
+import { Attachment, ChatPreview, UserChatMetadata } from '../types';
 
 export class ChatService {
   private async uploadAttachment(

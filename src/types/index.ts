@@ -41,10 +41,3 @@ export interface ChatState {
   error?: string;
 }
 
-export interface ChatPreview {
-  chatId: string;
-  otherUserId: string;
-  unreadCount: number;
-  lastRead: Date;
-  otherUserName?: string;
-}

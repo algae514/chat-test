@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { ChatService } from '../../services/chatService';
-import { Attachment } from '../../types';
+
 
 interface MessageInputProps {
   currentUserId: string;
@@ -95,6 +95,18 @@ const [error, setError] = useState<string | null>(null);
 
   return (
     <form onSubmit={handleSubmit} style={{ padding: '16px', borderTop: '1px solid #e5e5e5', background: 'white' }}>
+      {error && (
+        <div className="mb-2 p-2 bg-red-100 text-red-700 rounded flex justify-between items-center">
+          <span>{error}</span>
+          <button
+            type="button"
+            onClick={() => setError(null)}
+            className="text-red-500 hover:text-red-700"
+          >
+            ✕
+          </button>
+        </div>
+      )}
       {attachment && (
         <div className="mb-2 p-2 bg-gray-100 rounded flex justify-between items-center">
           <span>📎 {attachment.name}</span>

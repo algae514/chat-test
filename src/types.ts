@@ -49,3 +49,12 @@ export interface FirebaseError {
   code: string;
   message: string;
 }
+
+
+export interface ChatPreview {
+  chatId: string;
+  otherUserId: string;
+  unreadCount: number;
+  lastRead: Date;
+  otherUserName?: string;
+}
