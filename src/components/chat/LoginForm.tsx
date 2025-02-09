@@ -6,8 +6,7 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Alert from '@mui/material/Alert';
 import { styled } from '@mui/material/styles';
-import { signInWithCustomToken } from 'firebase/auth';
-import { auth } from '../../services/firebase';
+import { login } from '../../services/auth';
 
 interface LoginFormProps {
   panelId: string;
@@ -36,20 +35,14 @@ const LoginForm: React.FC<LoginFormProps> = ({ panelId, onLoginSuccess }) => {
     setIsLoading(true);
 
     try {
-      const response = await fetch('http://localhost:9091/aluminiapp/v2/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ phoneNumber }),
-      });
-
-      const { accessToken, firebaseToken } = await response.json();
-
-      // Sign in to Firebase
-      const userCredential = await signInWithCustomToken(auth, firebaseToken);
+      // Use the auth service instead of direct fetch
+      const response = await login(phoneNumber);
       
-      onLoginSuccess(accessToken, firebaseToken, userCredential.user.uid);
+      onLoginSuccess(
+        response.accessToken, 
+        response.firebaseToken, 
+        response.user.id
+      );
     } catch (err) {
       setError('Login failed. Please try again.');
       console.error('Login error:', err);

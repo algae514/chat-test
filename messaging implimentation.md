@@ -2,8 +2,9 @@
 
 ## 1. Database Schema (Firestore)
 
-### User Data Structure
+### Efficient Single-Collection Structure
 ```typescript
+// Users Collection
 users/
   {userId}/                  // User's document ID
     profile: {
@@ -12,26 +13,39 @@ users/
       isOnline: boolean,
       displayName?: string
     }
-    chats/                   // User's chats collection
-      {otherUserId}/         // Other user's ID
-        lastMessage: string,
-        lastMessageTime: timestamp,
-        lastMessageId: string,
+
+// Chats Collection (Shared between users)
+chats/
+  {chatId}/                  // Combined userIds (e.g., 'user1_user2')
+    metadata: {
+      participants: string[],
+      lastMessage: string,
+      lastMessageTime: timestamp,
+      lastMessageId: string
+    }
+    messages/                // Messages subcollection
+      {messageId}: {         // Individual message
+        id: string,
+        text: string,
+        senderId: string,
+        timestamp: timestamp,
+        status: 'sent' | 'read',
+        attachment?: {       // Optional attachment
+          url: string,
+          type: string,     // 'image' | 'video' | 'document'
+          name: string,
+          size: number
+        }
+      }
+
+// User Chat Metadata (for unread counts and quick access)
+users/
+  {userId}/
+    chatMeta/
+      {chatId}: {
         unreadCount: number,
-        messages/            // Messages subcollection
-          {messageId}: {     // Individual message
-            id: string,
-            text: string,
-            senderId: string,
-            timestamp: timestamp,
-            status: 'sent' | 'delivered' | 'read',
-            attachment?: {    // Optional attachment
-              url: string,
-              type: string,  // 'image' | 'video' | 'document'
-              name: string,
-              size: number
-            }
-          }
+        lastRead: timestamp
+      }
 ```
 
 ## 2. Type Definitions
@@ -48,10 +62,15 @@ interface User {
 }
 
 interface ChatMetadata {
+  participants: string[];
   lastMessage: string;
   lastMessageTime: Date;
   lastMessageId: string;
+}
+
+interface UserChatMetadata {
   unreadCount: number;
+  lastRead: Date;
 }
 
 interface Attachment {
@@ -66,7 +85,7 @@ interface Message {
   text: string;
   senderId: string;
   timestamp: Date;
-  status: 'sent' | 'delivered' | 'read';
+  status: 'sent' | 'read';
   attachment?: Attachment;
 }
 
@@ -78,202 +97,20 @@ interface ChatState {
 }
 ```
 
-## 3. Component Structure
+## 3. Message Operations
 
-### Required Components
-
-1. `ChatContainer`: Main wrapper component
-2. `ChatList`: Shows list of chats
-3. `ChatPanel`: Individual chat window
-4. `MessageList`: Messages display area
-5. `MessageInput`: Message input with attachment handling
-6. `MessageItem`: Individual message display
-
-## 4. Component Implementation Details
-
-### ChatPanel Component
-
-```typescript
-interface ChatPanelProps {
-  userId: string;
-  otherUserId: string;
-  onClose?: () => void;
-}
-
-const ChatPanel: React.FC<ChatPanelProps> = ({ userId, otherUserId, onClose }) => {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [lastDoc, setLastDoc] = useState<DocumentSnapshot | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
-  const pageSize = 25;
-
-  useEffect(() => {
-    const messagesRef = collection(
-      db, 
-      'users', 
-      userId, 
-      'chats', 
-      otherUserId, 
-      'messages'
-    );
-    
-    const q = query(
-      messagesRef,
-      orderBy('timestamp', 'desc'),
-      limit(pageSize)
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const newMessages = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        timestamp: doc.data().timestamp?.toDate()
-      }));
-
-      setMessages(newMessages);
-      setLastDoc(snapshot.docs[snapshot.docs.length - 1] || null);
-      setHasMore(snapshot.docs.length === pageSize);
-    });
-
-    return () => unsubscribe();
-  }, [userId, otherUserId]);
-
-  const loadMoreMessages = async () => {
-    if (!lastDoc || isLoading || !hasMore) return;
-
-    setIsLoading(true);
-    try {
-      const messagesRef = collection(
-        db, 
-        'users', 
-        userId, 
-        'chats', 
-        otherUserId, 
-        'messages'
-      );
-      
-      const q = query(
-        messagesRef,
-        orderBy('timestamp', 'desc'),
-        startAfter(lastDoc),
-        limit(pageSize)
-      );
-
-      const snapshot = await getDocs(q);
-      const olderMessages = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        timestamp: doc.data().timestamp?.toDate()
-      }));
-
-      setMessages(prev => [...prev, ...olderMessages]);
-      setLastDoc(snapshot.docs[snapshot.docs.length - 1] || null);
-      setHasMore(snapshot.docs.length === pageSize);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  return (
-    <div className="flex flex-col h-full">
-      <ChatHeader 
-        otherUserId={otherUserId} 
-        onClose={onClose}
-      />
-      <MessageList 
-        messages={messages}
-        currentUserId={userId}
-        onLoadMore={loadMoreMessages}
-        isLoading={isLoading}
-      />
-      <MessageInput 
-        onSend={handleSendMessage} 
-      />
-    </div>
-  );
-};
-```
-
-### MessageList Component
-
-```typescript
-interface MessageListProps {
-  messages: Message[];
-  currentUserId: string;
-  onLoadMore: () => Promise<void>;
-  isLoading: boolean;
-}
-
-const MessageList: React.FC<MessageListProps> = ({
-  messages,
-  currentUserId,
-  onLoadMore,
-  isLoading
-}) => {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const observer = useRef<IntersectionObserver>();
-  const [loadingMore, setLoadingMore] = useState(false);
-
-  // Intersection Observer for infinite scroll
-  const topElementRef = useCallback(
-    (node: HTMLDivElement | null) => {
-      if (isLoading) return;
-      if (observer.current) observer.current.disconnect();
-
-      observer.current = new IntersectionObserver(
-        entries => {
-          if (entries[0].isIntersecting && !loadingMore) {
-            setLoadingMore(true);
-            onLoadMore().finally(() => setLoadingMore(false));
-          }
-        },
-        { threshold: 0.5 }
-      );
-
-      if (node) observer.current.observe(node);
-    },
-    [isLoading, onLoadMore]
-  );
-
-  return (
-    <div 
-      ref={scrollRef}
-      className="flex-1 overflow-y-auto p-4"
-    >
-      {/* Loading indicator */}
-      {loadingMore && (
-        <div className="text-center py-2">Loading...</div>
-      )}
-
-      {/* Intersection observer target */}
-      <div ref={topElementRef} />
-
-      {/* Messages */}
-      {messages.map((message, index) => (
-        <MessageItem
-          key={message.id}
-          message={message}
-          isOwn={message.senderId === currentUserId}
-          showDate={shouldShowDate(message, messages[index - 1])}
-        />
-      ))}
-    </div>
-  );
-};
-```
-
-## 5. Sending Messages
-
+### Sending Messages
 ```typescript
 const sendMessage = async (
-  userId: string, 
-  otherUserId: string, 
-  text: string, 
+  userId: string,
+  otherUserId: string,
+  text: string,
   attachment?: File
-) => {
-  const messageId = doc(collection(db, 'users')).id;
+): Promise<string> => {
+  const chatId = getChatId(userId, otherUserId);
+  const messageId = doc(collection(db, 'messages')).id;
   const timestamp = serverTimestamp();
-  
+
   const messageData: any = {
     id: messageId,
     text,
@@ -284,40 +121,24 @@ const sendMessage = async (
 
   // Handle attachment if present
   if (attachment) {
-    const attachmentData = await uploadAttachment(userId, messageId, attachment);
+    const attachmentData = await uploadAttachment(chatId, messageId, attachment);
     messageData.attachment = attachmentData;
   }
 
   const batch = writeBatch(db);
-  
-  // Add message to sender's shard
+
+  // Add message to shared chat collection
   batch.set(
-    doc(db, 'users', userId, 'chats', otherUserId, 'messages', messageId),
+    doc(db, 'chats', chatId, 'messages', messageId),
     messageData
   );
-  
-  // Add message to recipient's shard
+
+  // Update unread count for recipient
   batch.set(
-    doc(db, 'users', otherUserId, 'chats', userId, 'messages', messageId),
-    messageData
-  );
-  
-  // Update chat metadata for both users
-  const chatData = {
-    lastMessage: text,
-    lastMessageTime: timestamp,
-    lastMessageId: messageId
-  };
-  
-  batch.set(
-    doc(db, 'users', userId, 'chats', otherUserId),
-    chatData,
-    { merge: true }
-  );
-  
-  batch.set(
-    doc(db, 'users', otherUserId, 'chats', userId),
-    { ...chatData, unreadCount: increment(1) },
+    doc(db, 'users', otherUserId, 'chatMeta', chatId),
+    {
+      unreadCount: increment(1),
+    },
     { merge: true }
   );
 
@@ -326,83 +147,196 @@ const sendMessage = async (
 };
 ```
 
-## 6. CSS Requirements
+### Reading Messages
+```typescript
+const subscribeToMessages = (
+  chatId: string,
+  callback: (messages: Message[]) => void,
+  limit: number = 25
+) => {
+  const messagesRef = collection(db, 'chats', chatId, 'messages');
+  const q = query(
+    messagesRef,
+    orderBy('timestamp', 'desc'),
+    limit(limit)
+  );
 
-The UI should implement these key styles:
+  return onSnapshot(q, (snapshot) => {
+    const messages = snapshot.docs.map(doc => ({
+      ...doc.data(),
+      id: doc.id,
+      timestamp: doc.data().timestamp?.toDate()
+    }));
+    callback(messages);
+  });
+};
+```
 
-1. Message bubbles with different colors for sent/received
-2. Smooth scrolling behavior
-3. Loading indicators
-4. Proper spacing between message groups
-5. File attachment previews
-6. Timestamps and read receipts
+### Marking Messages as Read
+```typescript
+const markMessagesAsRead = async (
+  userId: string,
+  chatId: string
+) => {
+  const batch = writeBatch(db);
 
-Example message bubble styles:
-```css
-.message-bubble {
-  @apply rounded-lg p-3 max-w-[70%] break-words;
-}
+  // Reset unread count
+  batch.set(
+    doc(db, 'users', userId, 'chatMeta', chatId),
+    { 
+      lastRead: serverTimestamp(),
+      unreadCount: 0
+    },
+    { merge: true }
+  );
 
-.message-own {
-  @apply bg-blue-500 text-white ml-auto;
-}
+  await batch.commit();
+};
+```
 
-.message-other {
-  @apply bg-gray-200 text-gray-800;
-}
+## 4. File Handling
 
-.message-status {
-  @apply text-xs text-gray-500 mt-1;
+### Attachment Validation
+```typescript
+const validateFile = (file: File) => {
+  const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+  const ALLOWED_TYPES = [
+    'image/jpeg',
+    'image/png',
+    'image/gif',
+    'video/mp4',
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  ];
+
+  if (file.size > MAX_FILE_SIZE) {
+    throw new Error('File size exceeds 5MB limit');
+  }
+
+  if (!ALLOWED_TYPES.includes(file.type)) {
+    throw new Error('File type not supported');
+  }
+};
+```
+
+### Attachment Upload
+```typescript
+const uploadAttachment = async (
+  chatId: string,
+  messageId: string,
+  file: File
+): Promise<Attachment> => {
+  validateFile(file);
+
+  const path = `attachments/${chatId}/${messageId}/${file.name}`;
+  const storageRef = ref(storage, path);
+  
+  await uploadBytes(storageRef, file);
+  const url = await getDownloadURL(storageRef);
+
+  return {
+    url,
+    name: file.name,
+    size: file.size,
+    type: file.type.startsWith('image/') 
+      ? 'image' 
+      : file.type.startsWith('video/') 
+        ? 'video' 
+        : 'document'
+  };
+};
+```
+
+## 5. User Status Management
+
+```typescript
+const updateOnlineStatus = async (
+  userId: string,
+  isOnline: boolean
+) => {
+  await setDoc(
+    doc(db, 'users', userId),
+    {
+      isOnline,
+      lastSeen: serverTimestamp()
+    },
+    { merge: true }
+  );
+};
+```
+
+## 6. Performance Considerations
+
+1. Single Collection Benefits:
+   - Reduced data duplication
+   - Simplified synchronization
+   - Lower storage costs
+   - Better consistency
+
+2. Batch Operations:
+   - Use writeBatch for related operations
+   - Ensure atomic updates
+   - Handle failures gracefully
+
+3. Efficient Queries:
+   - Use compound indexes where needed
+   - Implement pagination
+   - Optimize listener attachments
+
+4. Caching Strategy:
+   - Cache messages locally
+   - Implement offline support
+   - Handle reconnection gracefully
+
+## 7. Security Rules
+
+```typescript
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // User profiles
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth.uid == userId;
+    }
+
+    // Chat messages
+    match /chats/{chatId} {
+      allow read: if request.auth != null && 
+        exists(/databases/$(database)/documents/chats/$(chatId)/metadata/participants/$(request.auth.uid));
+      
+      allow write: if request.auth != null && 
+        exists(/databases/$(database)/documents/chats/$(chatId)/metadata/participants/$(request.auth.uid));
+
+      match /messages/{messageId} {
+        allow read: if request.auth != null && 
+          exists(/databases/$(database)/documents/chats/$(chatId)/metadata/participants/$(request.auth.uid));
+        
+        allow create: if request.auth != null && 
+          exists(/databases/$(database)/documents/chats/$(chatId)/metadata/participants/$(request.auth.uid)) &&
+          request.resource.data.senderId == request.auth.uid;
+      }
+    }
+  }
 }
 ```
 
-## 7. Required APIs
-
-1. Message Operations:
-   - Send message
-   - Load messages (paginated)
-   - Mark messages as read
-   - Delete message (optional)
-
-2. Chat Operations:
-   - Get chat list
-   - Start new chat
-   - Archive chat (optional)
-
-3. User Operations:
-   - Get user profile
-   - Update online status
-   - Update last seen
-
-## 8. Performance Considerations
-
-1. Message Pagination:
-   - Load 25 messages initially
-   - Implement infinite scroll
-   - Cache loaded messages
-
-2. Real-time Updates:
-   - Use Firestore listeners efficiently
-   - Handle offline support
-
-3. Attachment Handling:
-   - Compress images before upload
-   - Show preview while uploading
-   - Cache downloaded files
-
-## 9. Error Handling
+## 8. Error Handling
 
 Implement proper error handling for:
-1. Network issues
+1. Network disconnections
 2. Message send failures
 3. File upload errors
-4. Loading errors
+4. Authentication errors
+5. Permission denied errors
 
-## 10. Testing Requirements
+## 9. Testing Requirements
 
 Test cases should cover:
-1. Message sending/receiving
-2. Pagination
-3. Real-time updates
-4. Attachment handling
-5. Error scenarios
+1. Message operations (send, receive, read status)
+2. File uploads and downloads
+3. Real-time updates and synchronization
+4. Error scenarios and recovery
+5. Security rules validation
+6. Performance under load

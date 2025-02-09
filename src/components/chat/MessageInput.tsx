@@ -1,181 +1,116 @@
 import React, { useState } from 'react';
-import { uploadFile } from '../../services/fileService';
-import { 
-  Box, 
-  TextField, 
-  IconButton, 
-  Alert,
-  styled,
-} from '@mui/material';
-import { 
-  Send as SendIcon,
-  AttachFile as AttachFileIcon,
-  Close as CloseIcon 
-} from '@mui/icons-material';
-import type { FileAttachment } from '../../types';
+import { Attachment } from '../../types';
 
 interface MessageInputProps {
-  newMessage: string;
-  onMessageChange: (message: string) => void;
-  onSendMessage: (e: React.FormEvent) => void;
-  pendingAttachment: FileAttachment | null;
-  onPendingAttachmentClear: () => void;
-  userId: string;
-  onFileUploadComplete: (attachment: FileAttachment) => void;
-  onFileUploadError: (error: string) => void;
-  error: string;
+  onSendMessage: (text: string, attachment?: File) => Promise<void>;
+  disabled?: boolean;
 }
 
-const StyledInputContainer = styled(Box)(({ theme }) => ({
-  display: 'flex',
-  gap: theme.spacing(1),
-  padding: theme.spacing(2),
-  backgroundColor: '#fff',
-  borderTop: '1px solid',
-  borderColor: theme.palette.divider,
-  alignItems: 'center',
-}));
-
-const StyledInput = styled(TextField)({
-  '& .MuiOutlinedInput-root': {
-    borderRadius: '20px',
-    backgroundColor: '#f5f5f5',
-    '& fieldset': {
-      border: 'none',
-    },
-    '&:hover fieldset': {
-      border: 'none',
-    },
-    '&.Mui-focused fieldset': {
-      border: 'none',
-    },
-  },
-});
-
-const MessageInput: React.FC<MessageInputProps> = ({
-  newMessage,
-  onMessageChange,
-  onSendMessage,
-  pendingAttachment,
-  onPendingAttachmentClear,
-  userId,
-  onFileUploadComplete,
-  onFileUploadError,
-  error,
-}) => {
+const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, disabled }) => {
+  const [message, setMessage] = useState('');
+  const [attachment, setAttachment] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+const [error, setError] = useState<string | null>(null);
 
-  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if ((!message.trim() && !attachment) || isUploading || disabled) return;
 
-    setIsUploading(true);
     try {
-      const uploadResult = await uploadFile(file, userId);
-      onFileUploadComplete(uploadResult);  // Pass through the FileAttachment object directly
-    } catch (err) {
-      onFileUploadError('Failed to upload file. Please try again.');
-      console.error('File upload error:', err);
+      setIsUploading(true);
+      await onSendMessage(message, attachment || undefined);
+      setMessage('');
+      setAttachment(null);
+    } catch (error) {
+      console.error('Failed to send message:', error);
     } finally {
       setIsUploading(false);
-      // Clear the input
-      event.target.value = '';
+    }
+  };
+
+  const validateFile = (file: File) => {
+    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+    const ALLOWED_TYPES = [
+      'image/jpeg',
+      'image/png',
+      'image/gif',
+      'video/mp4',
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    ];
+
+    if (file.size > MAX_FILE_SIZE) {
+      throw new Error('File size exceeds 5MB limit');
+    }
+
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      throw new Error('File type not supported');
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      validateFile(file);
+      setAttachment(file);
+    } catch (error) {
+      console.error('File validation failed:', error);
+      alert(error instanceof Error ? error.message : 'Invalid file');
     }
   };
 
   return (
-    <Box sx={{ mt: 'auto' }}>
-      {error && (
-        <Alert 
-          severity="error" 
-          sx={{ m: 1 }}
-          action={
-            <IconButton
-              size="small"
-              onClick={() => onFileUploadError('')}
-            >
-              <CloseIcon fontSize="small" />
-            </IconButton>
-          }
-        >
-          {error}
-        </Alert>
-      )}
-      
-      {pendingAttachment && (
-        <Box sx={{ 
-          p: 1, 
-          m: 1, 
-          bgcolor: 'grey.100', 
-          borderRadius: 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between'
-        }}>
-          <span>📎 {pendingAttachment.name}</span>
-          <IconButton size="small" onClick={onPendingAttachmentClear}>
-            <CloseIcon fontSize="small" />
-          </IconButton>
-        </Box>
+    <form onSubmit={handleSubmit} className="p-4 border-t">
+      {attachment && (
+        <div className="mb-2 p-2 bg-gray-100 rounded flex justify-between items-center">
+          <span>📎 {attachment.name}</span>
+          <button
+            type="button"
+            onClick={() => setAttachment(null)}
+            className="text-red-500"
+          >
+            ✕
+          </button>
+        </div>
       )}
 
-      <StyledInputContainer>
+      <div className="flex gap-2">
         <input
           type="file"
-          id={`file-input-${userId}`}
+          id="file-input"
           onChange={handleFileSelect}
-          style={{ display: 'none' }}
+          className="hidden"
+          disabled={disabled || isUploading}
         />
-        <IconButton
-          component="label"
-          htmlFor={`file-input-${userId}`}
-          disabled={isUploading}
-          color="primary"
-          sx={{ 
-            '&:hover': { 
-              backgroundColor: 'rgba(25, 118, 210, 0.04)' 
-            }
-          }}
+        
+        <label
+          htmlFor="file-input"
+          className="p-2 hover:bg-gray-100 rounded cursor-pointer"
         >
-          <AttachFileIcon />
-        </IconButton>
+          📎
+        </label>
 
-        <StyledInput
-          fullWidth
+        <input
+          type="text"
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
           placeholder="Type a message..."
-          value={newMessage}
-          onChange={(e) => onMessageChange(e.target.value)}
-          size="small"
-          multiline
-          maxRows={4}
-          onKeyPress={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              onSendMessage(e);
-            }
-          }}
+          className="flex-1 p-2 border rounded"
+          disabled={disabled || isUploading}
         />
 
-        <IconButton
-          onClick={onSendMessage}
-          disabled={!newMessage.trim() && !pendingAttachment}
-          color="primary"
-          sx={{
-            backgroundColor: '#1976d2',
-            color: 'white',
-            '&:hover': {
-              backgroundColor: '#1565c0',
-            },
-            '&.Mui-disabled': {
-              backgroundColor: '#e0e0e0',
-              color: '#9e9e9e',
-            },
-          }}
+        <button
+          type="submit"
+          disabled={(!message.trim() && !attachment) || disabled || isUploading}
+          className="px-4 py-2 bg-blue-500 text-white rounded disabled:bg-gray-300"
         >
-          <SendIcon />
-        </IconButton>
-      </StyledInputContainer>
-    </Box>
+          Send
+        </button>
+      </div>
+    </form>
   );
 };
 

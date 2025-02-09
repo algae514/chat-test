@@ -1,172 +1,216 @@
 import React, { useState, useEffect } from 'react';
-import { db, auth } from '../../services/firebase';
-import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, where } from 'firebase/firestore';
-import type { Message, FileAttachment } from '../../types';
+import { db } from '../../services/firebase';
+import { sendMessage, markMessagesAsRead } from '../../services/messageService';
+import { collection, query, orderBy, limit, onSnapshot, DocumentSnapshot, getDocs, startAfter } from 'firebase/firestore';
+import type { Message, ChatState } from '../../types';
 import LoginForm from './LoginForm';
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
 
 interface ChatPanelProps {
-  selectedUserId?: string;
   panelId: string;
-  onAuthenticated?: (accessToken: string, firebaseToken: string) => void;
+  selectedUserId?: string;
   isAuthenticated?: boolean;
-
+  onAuthenticated?: (accessToken: string, firebaseToken: string, userId: string) => void;
   authState?: {
     accessToken: string;
     firebaseToken: string;
   };
+  userId?: string;
 }
+
+const MESSAGES_PER_PAGE = 25;
+
+const getChatId = (userId1: string, userId2: string) => {
+  return [userId1, userId2].sort().join('_');
+};
 
 const ChatPanel: React.FC<ChatPanelProps> = ({ 
   panelId, 
   selectedUserId, 
+  isAuthenticated = false,
   onAuthenticated,
-  isAuthenticated: initialIsAuthenticated
+  authState,
+  userId: propUserId 
 }) => {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [newMessage, setNewMessage] = useState('');
-  const [isAuthenticated, setIsAuthenticated] = useState(initialIsAuthenticated || false);
-  const [userId, setUserId] = useState('');
-  const [chatReady, setChatReady] = useState(false);
-
-  // Effect to handle initialization
-  useEffect(() => {
-    const initializeUser = () => {
-      if (auth.currentUser && !userId) {
-        console.log(`[Panel ${panelId}] Setting userId from auth:`, auth.currentUser.uid);
-        setUserId(auth.currentUser.uid);
-      }
-    };
-
-    // Check immediately
-    initializeUser();
-
-    // Also set up a listener for auth state changes
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-      console.log(`[Panel ${panelId}] Auth state changed:`, user?.uid);
-      if (user && !userId) {
-        setUserId(user.uid);
-      }
-    });
-
-    return () => unsubscribe();
-  }, [panelId, userId]);
-  const [error, setError] = useState('');
-  const [pendingAttachment, setPendingAttachment] = useState<FileAttachment | null>(null);
+  const [chatState, setChatState] = useState<ChatState>({
+    messages: [],
+    isLoading: true,
+    hasMore: true
+  });
+  const [lastDoc, setLastDoc] = useState<DocumentSnapshot | null>(null);
+  const [localUserId, setLocalUserId] = useState<string>('');
+  const currentUserId = propUserId || localUserId;
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    console.log(`[Panel ${panelId}] Effect triggered:`, {
-      isAuthenticated,
-      selectedUserId,
-      userId
-    });
-
-    // Only proceed if we have both IDs, authentication, and chat is ready
-    if (!isAuthenticated || !selectedUserId || !userId) {
-      console.log(`[Panel ${panelId}] Skipping query - missing required data`, {
-        isAuthenticated,
-        selectedUserId,
-        userId
+    // Mark messages as read when the chat is opened
+    if (isAuthenticated && currentUserId && selectedUserId) {
+      markMessagesAsRead(currentUserId, selectedUserId).catch(error => {
+        console.error('Failed to mark messages as read:', error);
       });
+    }
+  }, [isAuthenticated, currentUserId, selectedUserId]);
+
+  useEffect(() => {
+    // Only attempt to load messages if we're authenticated and have both user IDs
+    if (!isAuthenticated || !currentUserId || !selectedUserId) {
       return;
     }
 
-    // Set chat as ready when all conditions are met
-    if (!chatReady) {
-      console.log(`[Panel ${panelId}] Chat is now ready`);
-      setChatReady(true);
-    }
-    if (isAuthenticated && selectedUserId) {
-      const q = query(
-        collection(db, 'messages'),
-        where('participants', '==', [userId, selectedUserId].sort()),
-        orderBy('timestamp', 'asc')
-      );
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        console.log(`[Panel ${panelId}] Received Firestore update`);
-        const newMessages = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          timestamp: doc.data().timestamp?.toDate(),
-        })) as Message[];
-        console.log(`[Panel ${panelId}] Setting messages:`, newMessages);
-        setMessages(newMessages);
-      });
+    const chatId = getChatId(currentUserId, selectedUserId);
+    console.log('Setting up messages subscription:', { chatId });
 
-      return () => unsubscribe();
-    }
-  }, [isAuthenticated, selectedUserId, userId]);
+    const messagesRef = collection(
+      db,
+      'chats',
+      chatId,
+      'messages'
+    );
 
-  const handleLoginSuccess = (accessToken: string, firebaseToken: string, newUserId: string) => {
-    console.log(`[Panel ${panelId}] Login Success - Setting userId:`, newUserId);
-    setUserId(newUserId);
-    setIsAuthenticated(true);
-    onAuthenticated?.(accessToken, firebaseToken);
-  };
+    const q = query(
+      messagesRef,
+      orderBy('timestamp', 'desc'),
+      limit(MESSAGES_PER_PAGE)
+    );
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newMessage.trim() && !pendingAttachment) return;
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        try {
+          const fetchedMessages = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            timestamp: doc.data().timestamp?.toDate()
+          })) as Message[];
+
+          setChatState(prev => ({
+            ...prev,
+            messages: fetchedMessages,
+            isLoading: false,
+            hasMore: snapshot.docs.length === MESSAGES_PER_PAGE
+          }));
+
+          setLastDoc(snapshot.docs[snapshot.docs.length - 1] || null);
+        } catch (error) {
+          console.error('Error processing messages:', error);
+          setChatState(prev => ({
+            ...prev,
+            isLoading: false,
+            error: 'Failed to load messages'
+          }));
+        }
+      },
+      (error) => {
+        console.error('Error in messages subscription:', error);
+        setChatState(prev => ({
+          ...prev,
+          isLoading: false,
+          error: 'Failed to subscribe to messages'
+        }));
+      }
+    );
+
+    return () => unsubscribe();
+  }, [isAuthenticated, currentUserId, selectedUserId]);
+
+  const loadMoreMessages = async () => {
+    if (!lastDoc || chatState.isLoading || !chatState.hasMore) return;
+
+    setChatState(prev => ({ ...prev, isLoading: true }));
 
     try {
-      const messageData: any = {
-        participantId: [userId, selectedUserId].sort().join('_'),
-        participants: [userId, selectedUserId].sort(),
-        text: newMessage.trim() || (pendingAttachment ? '📎 Attachment' : ''),
-        senderId: userId,
-        timestamp: serverTimestamp(),
-      };
+      const chatId = getChatId(currentUserId, selectedUserId!);
+      const messagesRef = collection(
+        db,
+        'chats',
+        chatId,
+        'messages'
+      );
 
-      if (pendingAttachment) {
-        messageData.attachment = {
-          url: pendingAttachment.url,
-          fileName: pendingAttachment.fileName,
-          fileType: pendingAttachment.fileType,
-          size: pendingAttachment.size
-        };
-        setPendingAttachment(null);
-      }
+      const q = query(
+        messagesRef,
+        orderBy('timestamp', 'desc'),
+        startAfter(lastDoc),
+        limit(MESSAGES_PER_PAGE)
+      );
 
-      await addDoc(collection(db, 'messages'), messageData);
-      setNewMessage('');
-    } catch (err) {
-      console.error('Error sending message:', err);
-      setError('Failed to send message. Please try again.');
+      const snapshot = await getDocs(q);
+      const olderMessages = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        timestamp: doc.data().timestamp?.toDate()
+      })) as Message[];
+
+      setChatState(prev => ({
+        ...prev,
+        messages: [...prev.messages, ...olderMessages],
+        isLoading: false,
+        hasMore: snapshot.docs.length === MESSAGES_PER_PAGE
+      }));
+
+      setLastDoc(snapshot.docs[snapshot.docs.length - 1] || null);
+    } catch (error) {
+      console.error('Error loading more messages:', error);
+      setChatState(prev => ({
+        ...prev,
+        isLoading: false,
+        error: 'Failed to load more messages'
+      }));
     }
   };
+
+  useEffect(() => {
+    console.log('ChatPanel state:', { isAuthenticated, currentUserId, propUserId, selectedUserId });
+  }, [isAuthenticated, currentUserId, propUserId, selectedUserId]);
+
+  const handleLoginSuccess = async (accessToken: string, firebaseToken: string, newUserId: string) => {
+    setLocalUserId(newUserId);
+    if (onAuthenticated) {
+      onAuthenticated(accessToken, firebaseToken, newUserId);
+    }
+  };
+
+  if (!isAuthenticated) {
+    return (
+      <LoginForm 
+        panelId={panelId} 
+        onLoginSuccess={handleLoginSuccess}
+      />
+    );
+  }
 
   return (
     <div className="flex flex-col h-full">
-      <div className="p-4 border-b bg-white">
-        <h2 className="text-xl font-bold mb-4">Chat Panel {panelId}</h2>
-      </div>
-      <div className="flex-1 flex flex-col">
-        {!isAuthenticated ? (
-          <LoginForm 
-            panelId={panelId}
-            onLoginSuccess={handleLoginSuccess}
-          />
-        ) : (
-          <>
-            <MessageList 
-              messages={messages}
-              currentUserId={userId}
-            />
-            <MessageInput
-              newMessage={newMessage}
-              onMessageChange={setNewMessage}
-              onSendMessage={handleSendMessage}
-              pendingAttachment={pendingAttachment}
-              onPendingAttachmentClear={() => setPendingAttachment(null)}
-              userId={userId}
-              onFileUploadComplete={setPendingAttachment}
-              onFileUploadError={setError}
-              error={error}
-            />
-          </>
-        )}
-      </div>
+      {error && (
+        <div className="p-2 mb-2 bg-red-100 text-red-700 rounded">
+          {error}
+          <button
+            onClick={() => setError(null)}
+            className="ml-2 text-sm text-red-500 hover:text-red-700"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+      <MessageList 
+        messages={chatState.messages}
+        currentUserId={currentUserId}
+        onLoadMore={loadMoreMessages}
+        isLoading={chatState.isLoading}
+      />
+      <MessageInput 
+        onSendMessage={async (text: string, attachment?: File) => {
+          try {
+            setError(null);
+            await sendMessage(currentUserId, selectedUserId!, text, attachment);
+          } catch (error) {
+            console.error('Failed to send message:', error);
+            setError(error instanceof Error ? error.message : 'Failed to send message');
+            throw error;
+          }
+        }}
+      />
     </div>
   );
 };

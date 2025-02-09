@@ -1,38 +1,44 @@
-export interface FileAttachment {
+// User related types
+export interface User {
+  id: string;
+  phoneNumber: string;
+  lastSeen: Date;
+  isOnline: boolean;
+  displayName?: string;
+}
+
+// Chat related types
+export interface ChatMetadata {
+  lastRead: Date;
+  unreadCount: number;
+}
+
+// Message related types
+export interface Attachment {
   url: string;
-  fileName?: string;
-  name?: string;
-  fileType?: string;
-  type?: string;
+  type: 'image' | 'video' | 'document';
+  name: string;
   size: number;
 }
 
 export interface Message {
   id: string;
-  senderId: string;
   text: string;
+  senderId: string;
   timestamp: Date;
-  status?: 'sent' | 'delivered' | 'read';
-  attachment?: FileAttachment;
+  status: 'sent' | 'delivered' | 'read';
+  attachment?: Attachment;
 }
 
-export interface User {
-  uid: string;
-  phoneNumber: string;
+// State management types
+export interface ChatState {
+  messages: Message[];
+  isLoading: boolean;
+  hasMore: boolean;
+  error?: string;
 }
 
-export interface UserProfile {
-  id: string;
-  userId: string;
-  name: string;
-  profilePictureUrl: string | null;
-  schools: string[];
-  currentPosition: string | null;
-  status: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
+// Error types
 export interface FirebaseError {
   code: string;
   message: string;

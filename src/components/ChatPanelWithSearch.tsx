@@ -12,20 +12,24 @@ interface ChatPanelWithSearchProps {
 const ChatPanelWithSearch: React.FC<ChatPanelWithSearchProps> = ({ panelId }) => {
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userId, setUserId] = useState<string>('');
   const [authState, setAuthState] = useState({
     accessToken: '',
     firebaseToken: ''
   });
 
-  const handleLogin = async (accessToken: string, firebaseToken: string) => {
+  const handleLogin = async (accessToken: string, firebaseToken: string, newUserId: string) => {
+    console.log('Login successful:', { accessToken, firebaseToken, newUserId });
     setAuthState({
       accessToken,
       firebaseToken
     });
+    setUserId(newUserId);
     setIsAuthenticated(true);
   };
 
   const handleUserSelect = (user: UserProfile) => {
+    console.log('User selected:', user);
     setSelectedUser(user);
   };
 
@@ -34,8 +38,9 @@ const ChatPanelWithSearch: React.FC<ChatPanelWithSearchProps> = ({ panelId }) =>
       {!isAuthenticated ? (
         <div className="panel-content">
           <ChatPanel 
-            panelId={panelId} 
-            onAuthenticated={(accessToken, firebaseToken) => handleLogin(accessToken, firebaseToken)}
+            panelId={panelId}
+            isAuthenticated={false}
+            onAuthenticated={handleLogin}
           />
         </div>
       ) : selectedUser ? (
@@ -66,16 +71,20 @@ const ChatPanelWithSearch: React.FC<ChatPanelWithSearchProps> = ({ panelId }) =>
           </div>
           <div className="messages-container">
             <ChatPanel 
-              panelId={panelId} 
-              selectedUserId={selectedUser.userId} 
+              panelId={panelId}
+              selectedUserId={selectedUser.userId}
               isAuthenticated={isAuthenticated}
               authState={authState}
+              userId={userId}
             />
           </div>
         </>
       ) : (
         <div className="search-wrapper">
-          <UserSearch onUserSelect={handleUserSelect} authToken={authState} />
+          <UserSearch 
+            onUserSelect={handleUserSelect} 
+            authToken={authState} 
+          />
         </div>
       )}
     </div>
