@@ -1,10 +1,16 @@
-// User related types
-export interface User {
+// User types
+export interface UserProfile {
+  userId: string;
+  name: string;
+  currentPosition?: string;
+}
+
+// Chat metadata types
+export interface UserChatMetadata {
   id: string;
-  phoneNumber: string;
-  lastSeen: Date;
-  isOnline: boolean;
-  displayName?: string;
+  userId: string;
+  unreadCount: number;
+  lastRead: Date;
 }
 
 // Chat related types

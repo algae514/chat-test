@@ -91,6 +91,10 @@ This test app will serve as a basis for adding more complex features (such as gr
 	•	Both panels operate in the same window but maintain independent state and API interactions.
 
 4.3 Data Flow
+
+For detailed messaging implementation and data structure, refer to:
+/Users/balajiv/Documents/coderepos/test/chat-test/messaging implimentation.md
+
 	1.	Login Flow (Per Panel):
 	•	User enters a phone number in their respective panel.
 	•	Firebase handles authentication and returns a token.
@@ -106,6 +110,9 @@ This test app will serve as a basis for adding more complex features (such as gr
 5. API & Integration Points
 
 5.1 Firebase Integration
+Note: For detailed Firebase data structure and implementation details, refer to:
+/Users/balajiv/Documents/coderepos/test/chat-test/messaging implimentation.md
+
 	•	Firebase Authentication:
 	•	Use Firebase’s SDK to implement phone number authentication.
 	•	Handle SMS verification and token generation for each panel separately.

@@ -4,15 +4,9 @@
 
 ### Efficient Single-Collection Structure
 ```typescript
-// Users Collection
-users/
+// User Chat Metadata Collection
+user_chat_metadata/
   {userId}/                  // User's document ID
-    profile: {
-      phoneNumber: string,
-      lastSeen: timestamp,
-      isOnline: boolean,
-      displayName?: string
-    }
 
 // Chats Collection (Shared between users)
 chats/
@@ -38,10 +32,10 @@ chats/
         }
       }
 
-// User Chat Metadata (for unread counts and quick access)
-users/
+// User Chat Metadata Collection (for unread counts and quick access)
+user_chat_metadata/
   {userId}/
-    chatMeta/
+    chats/
       {chatId}: {
         unreadCount: number,
         lastRead: timestamp
@@ -53,12 +47,11 @@ users/
 ```typescript
 // src/types/chat.ts
 
-interface User {
+interface UserChatMetadata {
   id: string;
-  phoneNumber: string;
-  lastSeen: Date;
-  isOnline: boolean;
-  displayName?: string;
+  userId: string;
+  unreadCount: number;
+  lastRead: Date;
 }
 
 interface ChatMetadata {
@@ -135,7 +128,7 @@ const sendMessage = async (
 
   // Update unread count for recipient
   batch.set(
-    doc(db, 'users', otherUserId, 'chatMeta', chatId),
+    doc(db, 'user_chat_metadata', otherUserId, 'chats', chatId),
     {
       unreadCount: increment(1),
     },
@@ -182,7 +175,7 @@ const markMessagesAsRead = async (
 
   // Reset unread count
   batch.set(
-    doc(db, 'users', userId, 'chatMeta', chatId),
+    doc(db, 'user_chat_metadata', userId, 'chats', chatId),
     { 
       lastRead: serverTimestamp(),
       unreadCount: 0
@@ -295,10 +288,14 @@ const updateOnlineStatus = async (
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // User profiles
-    match /users/{userId} {
-      allow read: if request.auth != null;
+    // User chat metadata
+    match /user_chat_metadata/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
       allow write: if request.auth.uid == userId;
+      
+      match /chats/{chatId} {
+        allow read, write: if request.auth.uid == userId;
+      }
     }
 
     // Chat messages

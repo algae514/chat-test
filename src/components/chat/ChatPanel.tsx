@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../../services/firebase';
-import { sendMessage, markMessagesAsRead } from '../../services/messageService';
+import { ChatService } from '../../services/chatService';
 import { collection, query, orderBy, limit, onSnapshot, DocumentSnapshot, getDocs, startAfter } from 'firebase/firestore';
 import type { Message, ChatState } from '../../types';
 import LoginForm from './LoginForm';
@@ -43,10 +43,13 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const currentUserId = propUserId || localUserId;
   const [error, setError] = useState<string | null>(null);
 
+  const chatService = new ChatService();
+
   useEffect(() => {
     // Mark messages as read when the chat is opened
     if (isAuthenticated && currentUserId && selectedUserId) {
-      markMessagesAsRead(currentUserId, selectedUserId).catch(error => {
+      const chatId = getChatId(currentUserId, selectedUserId);
+      chatService.markAsRead(currentUserId, chatId).catch(error => {
         console.error('Failed to mark messages as read:', error);
       });
     }
@@ -70,7 +73,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
     const q = query(
       messagesRef,
-      orderBy('timestamp', 'desc'),
+      orderBy('timestamp', 'asc'),
       limit(MESSAGES_PER_PAGE)
     );
 
@@ -130,7 +133,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
       const q = query(
         messagesRef,
-        orderBy('timestamp', 'desc'),
+        orderBy('timestamp', 'asc'),
         startAfter(lastDoc),
         limit(MESSAGES_PER_PAGE)
       );
@@ -144,7 +147,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
       setChatState(prev => ({
         ...prev,
-        messages: [...prev.messages, ...olderMessages],
+        messages: [...olderMessages, ...prev.messages],
         isLoading: false,
         hasMore: snapshot.docs.length === MESSAGES_PER_PAGE
       }));
@@ -181,7 +184,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ height: 'calc(100% - 80px)', overflowY: 'hidden', display: 'flex', flexDirection: 'column' }}>
       {error && (
         <div className="p-2 mb-2 bg-red-100 text-red-700 rounded">
           {error}
@@ -196,20 +200,15 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       <MessageList 
         messages={chatState.messages}
         currentUserId={currentUserId}
+        chatId={getChatId(currentUserId, selectedUserId!)}
         onLoadMore={loadMoreMessages}
         isLoading={chatState.isLoading}
       />
+            </div>
       <MessageInput 
-        onSendMessage={async (text: string, attachment?: File) => {
-          try {
-            setError(null);
-            await sendMessage(currentUserId, selectedUserId!, text, attachment);
-          } catch (error) {
-            console.error('Failed to send message:', error);
-            setError(error instanceof Error ? error.message : 'Failed to send message');
-            throw error;
-          }
-        }}
+        currentUserId={currentUserId}
+        recipientId={selectedUserId!}
+        disabled={chatState.isLoading}
       />
     </div>
   );

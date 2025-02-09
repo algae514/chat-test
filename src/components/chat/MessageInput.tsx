@@ -1,30 +1,61 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { ChatService } from '../../services/chatService';
 import { Attachment } from '../../types';
 
 interface MessageInputProps {
-  onSendMessage: (text: string, attachment?: File) => Promise<void>;
+  currentUserId: string;
+  recipientId: string;
   disabled?: boolean;
 }
 
-const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, disabled }) => {
+const MessageInput: React.FC<MessageInputProps> = ({ currentUserId, recipientId, disabled }) => {
+  const chatService = new ChatService();
   const [message, setMessage] = useState('');
   const [attachment, setAttachment] = useState<File | null>(null);
+  const [sendStatus, setSendStatus] = useState<'idle' | 'sending' | 'error'>('idle');
+  const [networkStatus, setNetworkStatus] = useState<'online' | 'offline'>('online');
   const [isUploading, setIsUploading] = useState(false);
 const [error, setError] = useState<string | null>(null);
 
+  // Monitor network status
+  React.useEffect(() => {
+    const handleOnline = () => setNetworkStatus('online');
+    const handleOffline = () => setNetworkStatus('offline');
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if ((!message.trim() && !attachment) || isUploading || disabled) return;
+    if ((!message.trim() && !attachment) || isUploading || disabled || networkStatus === 'offline') return;
+    
+    setSendStatus('sending');
 
     try {
       setIsUploading(true);
-      await onSendMessage(message, attachment || undefined);
+      await chatService.sendMessage(
+        currentUserId,
+        recipientId,
+        message,
+        attachment || undefined
+      );
       setMessage('');
       setAttachment(null);
     } catch (error) {
       console.error('Failed to send message:', error);
+      setSendStatus('error');
+      setError(error instanceof Error ? error.message : 'Failed to send message');
     } finally {
       setIsUploading(false);
+      if (sendStatus !== 'error') {
+        setSendStatus('idle');
+      }
     }
   };
 
@@ -63,7 +94,7 @@ const [error, setError] = useState<string | null>(null);
   };
 
   return (
-    <form onSubmit={handleSubmit} className="p-4 border-t">
+    <form onSubmit={handleSubmit} style={{ padding: '16px', borderTop: '1px solid #e5e5e5', background: 'white' }}>
       {attachment && (
         <div className="mb-2 p-2 bg-gray-100 rounded flex justify-between items-center">
           <span>📎 {attachment.name}</span>

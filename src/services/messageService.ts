@@ -5,7 +5,7 @@ import {
   serverTimestamp, 
   increment,
   collection,
-  getDoc,
+
   query,
   where,
   orderBy,
@@ -13,7 +13,7 @@ import {
   getDocs
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import type { Message, Attachment, ChatMetadata } from '../types';
+import type { Attachment } from '../types';
 
 // Helper function to validate file size and type
 const validateFile = (file: File) => {
@@ -104,7 +104,7 @@ export const sendMessage = async (
 
   // Update unread count for recipient
   batch.set(
-    doc(db, 'users', otherUserId, 'chats', chatId),
+    doc(db, 'user_chat_metadata', otherUserId, 'chats', chatId),
     {
       unreadCount: increment(1),
     },
@@ -143,7 +143,7 @@ export const markMessagesAsRead = async (
 
   // Reset unread count
   batch.set(
-    doc(db, 'users', userId, 'chats', chatId),
+    doc(db, 'user_chat_metadata', userId, 'chats', chatId),
     { 
       lastRead: serverTimestamp(),
       unreadCount: 0
@@ -155,13 +155,4 @@ export const markMessagesAsRead = async (
 };
 
 // Update user's online status
-export const updateOnlineStatus = async (
-  userId: string,
-  isOnline: boolean
-) => {
-  const userRef = doc(db, 'users', userId);
-  await userRef.update({
-    isOnline,
-    lastSeen: serverTimestamp()
-  });
-};
+

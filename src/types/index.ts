@@ -1,10 +1,30 @@
+export interface Attachment {
+  url: string;
+  type: 'image' | 'video' | 'document';
+  name: string;
+  size: number;
+}
+
 export interface Message {
   id: string;
-  sender: string;
-  senderName: string;
-  receiver: string;
-  content: string;
+  text: string;
+  senderId: string;
   timestamp: Date;
+  status: 'sent' | 'read';
+  attachment?: Attachment;
+}
+
+export interface ChatMetadata {
+  participants: string[];
+  lastMessage: string;
+  lastMessageTime: Date;
+  lastMessageId: string;
+}
+
+// For quick access to a user's chats without loading messages
+export interface UserChatMetadata {
+  unreadCount: number;
+  lastRead: Date;
 }
 
 export interface User {
@@ -12,4 +32,19 @@ export interface User {
   phoneNumber: string;
   displayName: string;
   accessToken?: string;
+}
+
+export interface ChatState {
+  messages: Message[];
+  isLoading: boolean;
+  hasMore: boolean;
+  error?: string;
+}
+
+export interface ChatPreview {
+  chatId: string;
+  otherUserId: string;
+  unreadCount: number;
+  lastRead: Date;
+  otherUserName?: string;
 }
