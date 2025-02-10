@@ -6,6 +6,7 @@ import type { Message, ChatState } from '../../types';
 import LoginForm from './LoginForm';
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
+import { sortMessagesByDate } from '../../utils/chatUtils';
 
 interface ChatPanelProps {
   panelId: string;
@@ -45,17 +46,16 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const chatService = new ChatService();
 
   useEffect(() => {
-    // Mark messages as read when the chat is opened
     if (isAuthenticated && currentUserId && selectedUserId) {
       const chatId = getChatId(currentUserId, selectedUserId);
       chatService.markAsRead(currentUserId, chatId).catch(error => {
         console.error('Failed to mark messages as read:', error);
+        setError('Failed to mark messages as read');
       });
     }
   }, [isAuthenticated, currentUserId, selectedUserId]);
 
   useEffect(() => {
-    // Only attempt to load messages if we're authenticated and have both user IDs
     if (!isAuthenticated || !currentUserId || !selectedUserId) {
       return;
     }
@@ -63,16 +63,12 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     const chatId = getChatId(currentUserId, selectedUserId);
     console.log('Setting up messages subscription:', { chatId });
 
-    const messagesRef = collection(
-      db,
-      'chats',
-      chatId,
-      'messages'
-    );
+    const messagesRef = collection(db, 'chats', chatId, 'messages');
 
+    // Query latest messages first for better initial load
     const q = query(
       messagesRef,
-      orderBy('timestamp', 'asc'),
+      orderBy('timestamp', 'desc'),  // Changed to desc for latest first
       limit(MESSAGES_PER_PAGE)
     );
 
@@ -80,20 +76,39 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       q,
       (snapshot) => {
         try {
-          const fetchedMessages = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-            timestamp: doc.data().timestamp?.toDate()
-          })) as Message[];
+          const fetchedMessages = snapshot.docs.map(doc => {
+            const data = doc.data();
+            // Ensure timestamp is properly converted to Date
+            const timestamp = data.timestamp?.toDate() || new Date();
+            
+            return {
+              id: doc.id,
+              ...data,
+              timestamp
+            };
+          });
+
+          // Validate timestamps and filter out invalid messages
+          const validMessages = fetchedMessages.filter(msg => {
+            const isValidDate = msg.timestamp instanceof Date && !isNaN(msg.timestamp.getTime());
+            if (!isValidDate) {
+              console.error('Invalid timestamp for message:', msg);
+            }
+            return isValidDate;
+          });
+
+          // Sort messages by timestamp (oldest first for display)
+          const sortedMessages = sortMessagesByDate(validMessages);
 
           setChatState(prev => ({
             ...prev,
-            messages: fetchedMessages,
+            messages: sortedMessages,
             isLoading: false,
-            hasMore: snapshot.docs.length === MESSAGES_PER_PAGE
+            hasMore: snapshot.docs.length === MESSAGES_PER_PAGE,
+            error: undefined
           }));
 
-          setLastDoc(snapshot.docs[snapshot.docs.length - 1] || null);
+          setLastDoc(snapshot.docs[0] || null);  // Store first doc as last doc for pagination
         } catch (error) {
           console.error('Error processing messages:', error);
           setChatState(prev => ({
@@ -123,30 +138,37 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
     try {
       const chatId = getChatId(currentUserId, selectedUserId!);
-      const messagesRef = collection(
-        db,
-        'chats',
-        chatId,
-        'messages'
-      );
+      const messagesRef = collection(db, 'chats', chatId, 'messages');
 
       const q = query(
         messagesRef,
-        orderBy('timestamp', 'asc'),
+        orderBy('timestamp', 'desc'),  // Keep consistent with initial query
         startAfter(lastDoc),
         limit(MESSAGES_PER_PAGE)
       );
 
       const snapshot = await getDocs(q);
-      const olderMessages = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        timestamp: doc.data().timestamp?.toDate()
-      })) as Message[];
+      
+      const olderMessages = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          timestamp: data.timestamp?.toDate() || new Date()
+        };
+      }) as Message[];
+
+      // Filter and sort the messages
+      const validOlderMessages = olderMessages.filter(msg => 
+        msg.timestamp instanceof Date && !isNaN(msg.timestamp.getTime())
+      );
+
+      // Combine with existing messages and sort
+      const allMessages = sortMessagesByDate([...chatState.messages, ...validOlderMessages]);
 
       setChatState(prev => ({
         ...prev,
-        messages: [...olderMessages, ...prev.messages],
+        messages: allMessages,
         isLoading: false,
         hasMore: snapshot.docs.length === MESSAGES_PER_PAGE
       }));
@@ -183,27 +205,27 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   }
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ height: 'calc(100% - 80px)', overflowY: 'hidden', display: 'flex', flexDirection: 'column' }}>
-      {error && (
-        <div className="p-2 mb-2 bg-red-100 text-red-700 rounded">
-          {error}
-          <button
-            onClick={() => setError(null)}
-            className="ml-2 text-sm text-red-500 hover:text-red-700"
-          >
-            ✕
-          </button>
-        </div>
-      )}
-      <MessageList 
-        messages={chatState.messages}
-        currentUserId={currentUserId}
-        chatId={getChatId(currentUserId, selectedUserId!)}
-        onLoadMore={loadMoreMessages}
-        isLoading={chatState.isLoading}
-      />
-            </div>
+    <div className="h-screen flex flex-col">
+      <div className="h-[calc(100%-80px)] overflow-hidden flex flex-col">
+        {error && (
+          <div className="p-2 mb-2 bg-red-100 text-red-700 rounded flex justify-between items-center">
+            <span>{error}</span>
+            <button
+              onClick={() => setError(null)}
+              className="ml-2 text-sm text-red-500 hover:text-red-700"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+        <MessageList 
+          messages={chatState.messages}
+          currentUserId={currentUserId}
+          chatId={getChatId(currentUserId, selectedUserId!)}
+          onLoadMore={loadMoreMessages}
+          isLoading={chatState.isLoading}
+        />
+      </div>
       <MessageInput 
         currentUserId={currentUserId}
         recipientId={selectedUserId!}
