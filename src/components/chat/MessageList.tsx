@@ -31,10 +31,17 @@ const MessageList: React.FC<MessageListProps> = ({
   const [prevMessageCount, setPrevMessageCount] = useState(messages.length);
 
   // Validate messages and group them by date
+  // Deduplicate messages based on ID before grouping
+  const uniqueMessages = React.useMemo(() => {
+    const messageMap = new Map();
+    messages.forEach(msg => messageMap.set(msg.id, msg));
+    return Array.from(messageMap.values());
+  }, [messages]);
+
   const groupedMessages = React.useMemo(() => {
     try {
       // Filter out invalid messages
-      const validMessages = messages.filter(msg => {
+      const validMessages = uniqueMessages.filter(msg => {
         const isValid = validateMessage(msg);
         if (!isValid) {
           console.error('Invalid message found:', msg);
@@ -147,7 +154,7 @@ const MessageList: React.FC<MessageListProps> = ({
 
           {dateMessages.map((message) => (
             <div
-              key={message.id}
+              key={`message-wrapper-${message.id}`}
               className={`flex flex-col mb-4 ${
                 message.senderId === currentUserId ? 'items-end' : 'items-start'
               }`}
@@ -162,7 +169,7 @@ const MessageList: React.FC<MessageListProps> = ({
                 <p className="break-words">{message.text}</p>
                 
                 {message.attachment && (
-                  <div className="mt-2">
+                <div className="mt-2" key={`attachment-${message.id}`}>
                     {message.attachment.type === 'image' ? (
                       <img 
                         src={message.attachment.url} 

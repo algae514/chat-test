@@ -1,5 +1,17 @@
 import { Timestamp } from 'firebase/firestore';
 
+export interface User {
+  id: string;
+  displayName: string;
+  phoneNumber: string;
+  profilePictureUrl: string | null;
+  lastSeen: Timestamp;
+  isOnline: boolean;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  roles: string[];
+}
+
 export interface Attachment {
   url: string;
   name: string;
@@ -7,22 +19,32 @@ export interface Attachment {
   type: 'image' | 'video' | 'document';
 }
 
-export interface ChatPreview {
-  chatId: string;
-  otherUserId: string;
-  otherUserName: string;
-  otherUserPhoto?: string;
-  unreadCount: number;
-  lastRead?: Timestamp;
-  lastMessage?: {
-    text: string;
-    timestamp: Timestamp;
-    senderId: string;
-    attachment?: Attachment;
-  };
+export interface Message {
+  id: string;
+  senderId: string;
+  text: string;
+  timestamp: Timestamp;
+  status: 'sent' | 'read';
+  attachment?: Attachment;
 }
 
 export interface UserChatMetadata {
+  id: string; // Chat ID
+  lastMessage: string;
+  lastMessageTime: Timestamp;
   unreadCount: number;
-  lastRead?: Timestamp;
+  lastRead: Timestamp;
+  participants: string[];
+  otherUser: {
+    id: string;
+    displayName: string;
+    profilePictureUrl: string | null;
+  };
+}
+
+export interface ChatState {
+  messages: Message[];
+  isLoading: boolean;
+  hasMore: boolean;
+  error?: string;
 }

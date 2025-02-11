@@ -98,7 +98,11 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
           });
 
           // Sort messages by timestamp (oldest first for display)
-          const sortedMessages = sortMessagesByDate(validMessages);
+          // Deduplicate messages before updating state
+          const messageMap = new Map();
+          validMessages.forEach(msg => messageMap.set(msg.id, msg));
+          const uniqueMessages = Array.from(messageMap.values());
+          const sortedMessages = sortMessagesByDate(uniqueMessages);
 
           setChatState(prev => ({
             ...prev,
@@ -164,7 +168,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       );
 
       // Combine with existing messages and sort
-      const allMessages = sortMessagesByDate([...chatState.messages, ...validOlderMessages]);
+      // Deduplicate all messages
+      const messageMap = new Map();
+      [...chatState.messages, ...validOlderMessages].forEach(msg => messageMap.set(msg.id, msg));
+      const allMessages = sortMessagesByDate(Array.from(messageMap.values()));
 
       setChatState(prev => ({
         ...prev,

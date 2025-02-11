@@ -2,7 +2,8 @@ import { db, storage } from './firebase';
 import { 
   collection, 
   doc, 
-  writeBatch, 
+  writeBatch,
+  getDoc,
   serverTimestamp, 
   increment,
   query,
@@ -10,7 +11,7 @@ import {
   getDocs
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { Attachment, ChatPreview, UserChatMetadata } from '../types';
+import { Attachment, Message, UserChatMetadata } from '../types';
 
 export class ChatService {
   private async uploadAttachment(
@@ -36,6 +37,40 @@ export class ChatService {
     };
   }
 
+  private async getOrCreateChatMetadata(
+    // Added logging for debugging user metadata
+
+    userId: string,
+    otherUserId: string,
+    chatId: string
+  ): Promise<void> {
+    const userMetadataRef = doc(db, 'user_chat_metadata', userId, 'chats', chatId);
+    const userMetadataDoc = await getDoc(userMetadataRef);
+
+    console.log('Checking chat metadata for users:', { userId, otherUserId, chatId });
+    console.log('Current metadata doc:', userMetadataDoc.data());
+
+    if (!userMetadataDoc.exists()) {
+      console.log('Creating new chat metadata...');
+      const otherUserDoc = await getDoc(doc(db, 'users', otherUserId));
+      const otherUserData = otherUserDoc.data();
+      console.log('Other user data from users collection:', otherUserData);
+
+      const metadata: Partial<UserChatMetadata> = {
+        unreadCount: 0,
+        lastRead: serverTimestamp(),
+        participants: [userId, otherUserId],
+        otherUser: {
+          id: otherUserId,
+          name: otherUserData?.displayName || 'Unknown',
+          photoURL: otherUserData?.profilePictureUrl
+        }
+      };
+
+      await userMetadataRef.set(metadata, { merge: true });
+    }
+  }
+
   async sendMessage(
     userId: string,
     otherUserId: string,
@@ -43,22 +78,11 @@ export class ChatService {
     attachment?: File
   ): Promise<string> {
     try {
-      // Create chat ID by combining user IDs
       const chatId = [userId, otherUserId].sort().join('_');
-      
-      // Create references
       const messagesRef = collection(db, 'chats', chatId, 'messages');
       const messageId = doc(messagesRef).id;
       
-      // Prepare base message data
-      const messageData: {
-        id: string;
-        text: string;
-        senderId: string;
-        timestamp: any;
-        status: 'sent' | 'read';
-        attachment?: Attachment;
-      } = {
+      const messageData: Message = {
         id: messageId,
         text,
         senderId: userId,
@@ -66,23 +90,41 @@ export class ChatService {
         status: 'sent'
       };
 
-      // Handle attachment if present
       if (attachment) {
         messageData.attachment = await this.uploadAttachment(chatId, messageId, attachment);
       }
 
       const batch = writeBatch(db);
 
-      // Store full message in chats collection
+      // Ensure chat metadata exists for both users
+      await Promise.all([
+        this.getOrCreateChatMetadata(userId, otherUserId, chatId),
+        this.getOrCreateChatMetadata(otherUserId, userId, chatId)
+      ]);
+
+      // Store message
       batch.set(
         doc(db, 'chats', chatId, 'messages', messageId),
         messageData
       );
 
-      // Update chat metadata (unread count) for recipient
+      // Update sender's metadata
+      batch.set(
+        doc(db, 'user_chat_metadata', userId, 'chats', chatId),
+        {
+          lastMessage: text,
+          lastMessageTime: serverTimestamp(),
+          lastRead: serverTimestamp()
+        },
+        { merge: true }
+      );
+
+      // Update recipient's metadata
       batch.set(
         doc(db, 'user_chat_metadata', otherUserId, 'chats', chatId),
         {
+          lastMessage: text,
+          lastMessageTime: serverTimestamp(),
           unreadCount: increment(1)
         },
         { merge: true }
@@ -97,14 +139,12 @@ export class ChatService {
   }
 
   async markAsRead(userId: string, chatId: string): Promise<void> {
-    if (!userId || !chatId) {
-      console.warn('markAsRead called with invalid parameters:', { userId, chatId });
-      return;
-    }
+    if (!userId || !chatId) return;
+
     try {
       const batch = writeBatch(db);
 
-      // Reset unread count and mark messages as read
+      // Reset unread count and update last read
       batch.set(
         doc(db, 'user_chat_metadata', userId, 'chats', chatId),
         {
@@ -114,22 +154,17 @@ export class ChatService {
         { merge: true }
       );
 
-      // Get messages from the last 24 hours that aren't read
+      // Mark messages as read
       const messagesRef = collection(db, 'chats', chatId, 'messages');
       const q = query(
         messagesRef,
         where('status', '==', 'sent'),
-        where('timestamp', '>=', new Date(Date.now() - 24 * 60 * 60 * 1000))
+        where('senderId', '!=', userId)
       );
 
       const unreadMessages = await getDocs(q);
-      
-      // Mark each unread message as read
       unreadMessages.docs.forEach(doc => {
-        const messageData = doc.data();
-        if (messageData.senderId !== userId) {
-          batch.update(doc.ref, { status: 'read' });
-        }
+        batch.update(doc.ref, { status: 'read' });
       });
 
       await batch.commit();
@@ -139,33 +174,16 @@ export class ChatService {
     }
   }
 
-  async getUserChatPreviews(userId: string): Promise<ChatPreview[]> {
+  async getUserChatMetadata(userId: string): Promise<UserChatMetadata[]> {
     try {
-      // Get all chat metadata for this user
       const userChatsRef = collection(db, 'user_chat_metadata', userId, 'chats');
-      const userChatsSnapshot = await getDocs(userChatsRef);
-
-      const chatPreviews: ChatPreview[] = [];
-
-      for (const doc of userChatsSnapshot.docs) {
-        const chatId = doc.id;
-        const data = doc.data() as UserChatMetadata;
-        
-        // Extract other user's ID from chatId
-        const [user1, user2] = chatId.split('_');
-        const otherUserId = user1 === userId ? user2 : user1;
-
-        chatPreviews.push({
-          chatId,
-          otherUserId,
-          unreadCount: data.unreadCount,
-          lastRead: data.lastRead
-        });
-      }
-
-      return chatPreviews;
+      const snapshot = await getDocs(userChatsRef);
+      return snapshot.docs.map(doc => ({ 
+        ...doc.data() as UserChatMetadata, 
+        id: doc.id 
+      }));
     } catch (error) {
-      console.error('Error getting user chat previews:', error);
+      console.error('Error getting user chats:', error);
       throw error;
     }
   }
