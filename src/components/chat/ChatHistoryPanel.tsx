@@ -12,72 +12,123 @@ interface ChatHistoryPanelProps {
 const ChatHistoryPanel: React.FC<ChatHistoryPanelProps> = ({ userId, onChatSelect }) => {
   const [chats, setChats] = useState<UserChatMetadata[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const chatService = new ChatService();
 
-  useEffect(() => {
-    console.log('Fetching chat history for userId:', userId);
+  const getOtherUserIdFromChatId = (chatId: string, currentUserId: string): string => {
+    const userIds = chatId.split('_');
+    return userIds[0] === currentUserId ? userIds[1] : userIds[0];
+  };
 
-    // First, let's log the user's own data
-    const userDocRef = doc(db, 'users', userId);
-    getDoc(userDocRef).then(userDoc => {
-      console.log('Current user data:', { id: userDoc.id, ...userDoc.data() });
-    });
+  useEffect(() => {
+    if (!userId) {
+      setError('No user ID provided');
+      setLoading(false);
+      return;
+    }
+
+    console.log('Fetching chat history for userId:', userId);
 
     const chatsRef = collection(db, 'user_chat_metadata', userId, 'chats');
     const q = query(chatsRef, orderBy('lastMessageTime', 'desc'));
-
-    console.log('Fetching chat history for userId:', userId);
     
     const unsubscribe = onSnapshot(q, async (snapshot) => {
-      console.log('Raw chat history snapshot:', snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      try {
+        console.log('Raw snapshot data:', snapshot.docs.map(doc => ({
+          id: doc.id,
+          data: doc.data()
+        })));
 
-      const chatData = await Promise.all(snapshot.docs.map(async (docSnapshot) => {
-        const data = docSnapshot.data();
-        // Find the other user ID from participants by filtering out current user
-        const otherUserId = data.participants.find(id => id !== userId);
-        
-        try {
-          if (otherUserId) {
-            // Fetch other user's data
-            const otherUserDoc = await getDoc(doc(db, 'users', otherUserId));
-            console.log('Other user document exists:', otherUserDoc.exists());
-            
-            if (!otherUserDoc.exists()) {
-              console.error('User document does not exist for ID:', otherUserId);
+        const chatData = await Promise.all(
+          snapshot.docs.map(async (docSnapshot) => {
+            try {
+              const data = docSnapshot.data();
+              console.log('Processing chat document:', docSnapshot.id, data);
+
+              // Get other user ID either from participants or chat ID
+              let otherUserId: string;
+              
+              if (data && Array.isArray(data.participants)) {
+                otherUserId = data.participants.find(id => id !== userId) || '';
+              } else {
+                // Extract other user ID from chat ID
+                otherUserId = getOtherUserIdFromChatId(docSnapshot.id, userId);
+              }
+
+              console.log('Found other user ID:', otherUserId);
+
+              if (!otherUserId) {
+                console.warn('Could not determine other user ID for chat:', docSnapshot.id);
+                return {
+                  id: docSnapshot.id,
+                  lastMessage: data?.lastMessage || 'No messages',
+                  lastMessageTime: data?.lastMessageTime || null,
+                  unreadCount: data?.unreadCount || 0,
+                  participants: [],
+                  otherUser: {
+                    id: 'unknown',
+                    name: 'Unknown User',
+                    photoURL: null
+                  }
+                };
+              }
+
+              // Fetch other user's data
+              const otherUserDoc = await getDoc(doc(db, 'users', otherUserId));
+              console.log('Other user document exists:', otherUserDoc.exists());
+              
+              if (!otherUserDoc.exists()) {
+                console.warn('User document does not exist for ID:', otherUserId);
+                return {
+                  id: docSnapshot.id,
+                  ...data,
+                  lastMessage: data?.lastMessage || 'No messages',
+                  lastMessageTime: data?.lastMessageTime || null,
+                  unreadCount: data?.unreadCount || 0,
+                  otherUser: {
+                    id: otherUserId,
+                    name: 'Unknown User',
+                    photoURL: null
+                  }
+                };
+              }
+
+              const otherUserData = otherUserDoc.data();
+              console.log('Fetched other user data:', otherUserData);
+
               return {
                 ...data,
                 id: docSnapshot.id,
+                lastMessage: data?.lastMessage || 'No messages',
+                lastMessageTime: data?.lastMessageTime || null,
+                unreadCount: data?.unreadCount || 0,
                 otherUser: {
                   id: otherUserId,
-                  name: 'Unknown User',
-                  photoURL: undefined
+                  name: otherUserData?.displayName || 'Unknown User',
+                  photoURL: otherUserData?.profilePictureUrl || null
                 }
               };
+            } catch (err) {
+              console.error('Error processing chat document:', err);
+              return null;
             }
-            
-            const otherUserData = otherUserDoc.data();
-            console.log('Raw other user data:', otherUserData);
+          })
+        );
 
-            return {
-              ...data,
-              id: docSnapshot.id,
-              otherUser: {
-                id: otherUserId,
-                name: otherUserData?.displayName || 'Unknown User',
-                photoURL: otherUserData?.profilePictureUrl
-              }
-            };
-          }
-        } catch (error) {
-          console.error('Error fetching other user data:', error);
-        }
-
-        return { ...data, id: docSnapshot.id };
-      }));
-
-      console.log('Processed chat data:', chatData);
-      console.log('Processed chat data:', chatData);
-      setChats(chatData);
+        // Filter out any null values from errors and set the chats
+        const validChatData = chatData.filter(chat => chat !== null) as UserChatMetadata[];
+        console.log('Final processed chat data:', validChatData);
+        setChats(validChatData);
+        setError(null);
+      } catch (err) {
+        console.error('Error processing chat history:', err);
+        setError('Failed to load chat history');
+      } finally {
+        setLoading(false);
+      }
+    }, (err) => {
+      console.error('Error in chat history subscription:', err);
+      setError('Failed to subscribe to chat history');
       setLoading(false);
     });
 
@@ -86,6 +137,14 @@ const ChatHistoryPanel: React.FC<ChatHistoryPanelProps> = ({ userId, onChatSelec
 
   if (loading) {
     return <div className="flex justify-center p-4">Loading chats...</div>;
+  }
+
+  if (error) {
+    return (
+      <div className="flex justify-center p-4 text-red-500">
+        {error}
+      </div>
+    );
   }
 
   return (

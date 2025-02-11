@@ -8,7 +8,8 @@ import {
   increment,
   query,
   where,
-  getDocs
+  getDocs,
+  setDoc
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Attachment, Message, UserChatMetadata } from '../types';
@@ -56,7 +57,7 @@ export class ChatService {
       const otherUserData = otherUserDoc.data();
       console.log('Other user data from users collection:', otherUserData);
 
-      const metadata: Partial<UserChatMetadata> = {
+      const metadata: Partial<UserChatMetadata> & { participants: string[] } = {
         unreadCount: 0,
         lastRead: serverTimestamp(),
         participants: [userId, otherUserId],
@@ -67,7 +68,7 @@ export class ChatService {
         }
       };
 
-      await userMetadataRef.set(metadata, { merge: true });
+      await setDoc(userMetadataRef, metadata, { merge: true });
     }
   }
 
